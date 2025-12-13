@@ -1,48 +1,28 @@
-[workspace]
-resolver = "2"
-members = [
-    "crates/bevy_map_core",
-    "crates/bevy_map_autotile",
-    "crates/bevy_map_animation",
-    "crates/bevy_map_dialogue",
-    "crates/bevy_map_derive",
-    "crates/bevy_map_runtime",
-    "crates/bevy_map_schema",
-    "crates/bevy_map_editor",
-    "examples",
-]
-
-[workspace.package]
+[package]
+name = "bevy_github_ci_template"
 version = "0.1.0"
-edition = "2021"
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/jbuehler23/bevy_map_editor"
-keywords = ["bevy", "tilemap", "gamedev", "editor", "2d"]
-categories = ["game-development", "graphics", "rendering"]
-rust-version = "1.76.0"
+edition = "2024"
+license = "MIT OR Apache-2.0 OR CC0-1.0"
 
-[workspace.dependencies]
-# Internal crates
-bevy_map_core = { path = "crates/bevy_map_core" }
-bevy_map_autotile = { path = "crates/bevy_map_autotile" }
-bevy_map_animation = { path = "crates/bevy_map_animation" }
-bevy_map_dialogue = { path = "crates/bevy_map_dialogue" }
-bevy_map_derive = { path = "crates/bevy_map_derive" }
-bevy_map_runtime = { path = "crates/bevy_map_runtime" }
-bevy_map_schema = { path = "crates/bevy_map_schema" }
-bevy_map_editor = { path = "crates/bevy_map_editor" }
+# Compile with Performance Optimizations:
+# https://bevyengine.org/learn/book/getting-started/setup/#compile-with-performance-optimizations
 
-# Serialization
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+# Enable a small amount of optimization in debug mode
+[profile.dev]
+opt-level = 1
 
-# Core utilities
-uuid = { version = "1.0", features = ["v4", "serde"] }
+# Enable high optimizations for dependencies (incl. Bevy), but not for our code:
+[profile.dev.package."*"]
+opt-level = 3
 
-# Bevy ecosystem (0.17 compatible)
+[dependencies]
 bevy = "0.17"
-bevy_ecs_tilemap = "0.17"
-bevy_egui = "0.38"
 
-# Platform-specific
-rfd = "0.15"
+# These lints may be important signals about code quality, but normal Bevy code
+# commonly triggers them and the CI workflow treats them as errors, so we've
+# chosen to allow them in this template.
+#
+# Feel free to delete the following lines.
+[lints.clippy]
+too_many_arguments = "allow"
+type_complexity = "allow"

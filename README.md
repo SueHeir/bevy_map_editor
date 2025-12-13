@@ -1,207 +1,103 @@
-# bevy_map_editor
+# Bevy GitHub CI Template
 
-A complete 2D tilemap editing ecosystem for Bevy 0.17. Create maps in the editor, load them at runtime with one line of code.
+This repo show how to set up CI on a GitHub project for Bevy.
 
-<!-- TODO: Add editor screenshot here -->
-![Editor Screenshot](docs/images/editor_screenshot.png)
+It creates two workflows:
 
-## Features
+* [CI](#CI)
+* [Release](#Release)
 
-- **Visual Map Editor** - egui-based editor with layer system, terrain painting, and entity placement
-- **Tiled-compatible Autotiling** - Corner, Edge, and Mixed terrain modes using Wang tiles
-- **Runtime Loading** - Efficient tilemap rendering via bevy_ecs_tilemap 0.17
-- **Custom Entities** - Define game objects with `#[derive(MapEntity)]` proc macro
-- **Sprite Animations** - Define sprite sheets with named animations, auto-loaded at runtime
-- **Dialogue Trees** - Visual node-based dialogue editor with branching conversations
-- **Schema System** - Type-safe entity properties with validation
+## CI
 
-## Crates
+Definition: [.github/workflows/ci.yaml](./.github/workflows/ci.yaml)
 
-| Crate | Description |
-|-------|-------------|
-| [bevy_map_core](crates/bevy_map_core) | Core data types (Level, Layer, Tileset, MapProject) |
-| [bevy_map_editor](crates/bevy_map_editor) | Visual map editor with egui UI |
-| [bevy_map_runtime](crates/bevy_map_runtime) | Runtime rendering via bevy_ecs_tilemap |
-| [bevy_map_autotile](crates/bevy_map_autotile) | Wang tile autotiling system |
-| [bevy_map_animation](crates/bevy_map_animation) | Sprite sheet animations |
-| [bevy_map_dialogue](crates/bevy_map_dialogue) | Dialogue tree system |
-| [bevy_map_derive](crates/bevy_map_derive) | `#[derive(MapEntity)]` proc macro |
-| [bevy_map_schema](crates/bevy_map_schema) | Entity property validation |
+This workflow runs on every commit to `main` branch, and on every PR targeting the `main` branch.
 
-## Quick Start
+It will use rust stable on linux, with cache between different executions, those commands:
 
-### Running the Editor
+* `cargo test`
+* `cargo clippy -- -D warnings`
+* `cargo fmt --all -- --check`
 
-```rust
-use bevy::prelude::*;
-use bevy_map_editor::EditorPlugin;
+If you are using anything OS specific or rust nightly, you should update the file [ci.yaml](./.github/workflows/ci.yaml) to use those.
 
-fn main() {
-    App::new()
-        .add_plugins(DefaultPlugins)
-        .add_plugins(EditorPlugin)
-        .run();
-}
+## Release
+
+Definition: [.github/workflows/release.yaml](./.github/workflows/release.yaml)
+
+This workflow runs on every tag.
+
+It will build:
+* For Linux and Windows, a .zip archive containing the executable and the `assets`.
+* For macOS, a dmg image with a .app containing the `assets`.
+* For wasm, a .zip archive with the wasm binary, the js bindings, an html file loading it, and the `assets`.
+
+If you don't want to target some of those platforms, you can remove the corresponding job from the file [release.yaml](./.github/workflows/release.yaml).
+
+If you don't want to attach the builds to the GitHub release, set `env.add_binaries_to_github_release` to `false`.
+
+If you are using Git LFS, set `env.use_git_lfs` to `true` so your assets are properly checked out.
+
+> [!Warning]
+> GitHub's LFS storage has a quota. Please take a look at GitHub's documentation [here](https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-storage-and-bandwidth-usage) to understand the quota and costs before enabling this option.
+
+### Git Tag from GitHub UI
+
+You can follow [Managing releases in a repository](https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository)
+
+### Git Tag from the CLI
+
+Execute the following commands: 
+
+```sh
+git tag -a "my-game-1.0" -m "First official release"
+git push --tags
 ```
 
-```bash
-cargo run --example basic_editor -p bevy_map_editor_examples
-```
+### Result
 
-### Loading Maps at Runtime
+A new release will be available in GitHub, with the archives per platform available as downloadable assets.
 
-```rust
-use bevy::prelude::*;
-use bevy_map_runtime::prelude::*;
+The `git` commands above produced this release: [my-game-1.0](
+https://github.com/bevyengine/bevy_github_ci_template/releases/tag/my-game-1.0).
 
-fn main() {
-    App::new()
-        .add_plugins(DefaultPlugins)
-        .add_plugins(MapRuntimePlugin)
-        .add_systems(Startup, load_map)
-        .run();
-}
+## Using the workflows in your own project
 
-fn load_map(mut commands: Commands, asset_server: Res<AssetServer>) {
-    commands.spawn(Camera2d);
+If you would like to use the GitHub workflows included here for your own project, there are a few things you might have to adapt:
 
-    // Load and spawn the map
-    commands.spawn(MapBundle::new(
-        asset_server.load("maps/level1.map.json"),
-    ));
-}
-```
+1. The release workflow relies on the `index.html` file under `/wasm` for web builds
+2. Make sure that the env variable `binary` ([release.yaml](.github/workflows/release.yaml#L10)) matches the name of your binary
+3. Adapt the used toolchain if you are using nightly
+4. In your GitHub repo's settings, under `Actions -> General` make sure "Read and Write permissions" is selected under "Workflow permissions" near the bottom. This fixes the error `Error: Resource not accessible by integration`.
 
-<!-- TODO: Add runtime screenshot here -->
-![Runtime Screenshot](docs/images/runtime_screenshot.png)
 
-### Defining Custom Entities
+### Publish on itch.io
 
-Define game entities in code, place them in the editor:
+The release flow can be configured to push the releases to itch.io:
 
-```rust
-use bevy::prelude::*;
-use bevy_map_derive::MapEntity;
-use bevy_map_runtime::MapEntityRegistry;
+1. Create an API key in https://itch.io/user/settings/api-keys
+2. Go to the repository's Settings tab in GitHub, click on Secrets->Actions in the sidebar,and add a repository secret named `BUTLER_CREDENTIALS` set to the API key.
+3. Uncomment `env.itch_target` in `release.yaml` and set it to the itch.io username and the name of the game on itch.io, separated by a slash (`/`)
 
-#[derive(Component, MapEntity)]
-#[map_entity(type_name = "NPC")]
-pub struct Npc {
-    #[map_prop]
-    pub name: String,
-    #[map_prop(default = 100)]
-    pub health: i32,
-}
-
-fn main() {
-    App::new()
-        .add_plugins(DefaultPlugins)
-        .add_plugins(MapRuntimePlugin)
-        .add_systems(Startup, |mut registry: ResMut<MapEntityRegistry>| {
-            registry.register::<Npc>();
-        })
-        .run();
-}
-```
-
-## Examples
-
-| Example | Description |
-|---------|-------------|
-| `basic_editor` | Full editor with all features |
-| `runtime_loader` | Load and display a map |
-| `animation_auto_demo` | Auto-loading animated sprites |
-| `animation_manual_demo` | Manual sprite animation control |
-| `dialogue_auto_demo` | Auto-loading dialogue trees |
-| `dialogue_manual_demo` | Manual dialogue handling |
-| `custom_entities_demo` | Custom entity types |
-| `tileset_demo` | Tileset rendering |
-
-Run examples:
-```bash
-cargo run --example basic_editor -p bevy_map_editor_examples
-cargo run --example runtime_loader -p bevy_map_editor_examples
-```
-
-## Map File Format
-
-Maps are saved as `.map.json` files:
-
-```json
-{
-  "version": 1,
-  "schema": {
-    "project": { "name": "My Game", "tile_size": 16 },
-    "data_types": {
-      "NPC": {
-        "color": "#4CAF50",
-        "placeable": true,
-        "properties": [
-          { "name": "name", "type": "string", "required": true },
-          { "name": "health", "type": "int", "default": 100 }
-        ]
-      }
-    }
-  },
-  "tilesets": [...],
-  "levels": [...],
-  "sprite_sheets": [...],
-  "dialogues": [...]
-}
-```
-
-## Editor Features
-
-<!-- TODO: Add feature screenshots here -->
-
-### Terrain Painting
-Autotile terrain transitions using Tiled-compatible Wang tiles (Corner, Edge, Mixed modes).
-
-![Terrain Painting](docs/images/terrain_painting.png)
-
-### Entity Placement
-Place custom entities with property editing in the inspector panel.
-
-![Entity Placement](docs/images/entity_placement.png)
-
-### Dialogue Editor
-Visual node-based dialogue tree editor with Text, Choice, Condition, and Action nodes.
-
-![Dialogue Editor](docs/images/dialogue_editor.png)
-
-### Animation Editor
-Define sprite sheets with multiple named animations per asset.
-
-![Animation Editor](docs/images/animation_editor.png)
-
-## Keyboard Shortcuts
-
-| Shortcut | Action |
-|----------|--------|
-| `Ctrl+N` | New Project |
-| `Ctrl+O` | Open Project |
-| `Ctrl+S` | Save |
-| `Ctrl+Shift+S` | Save As |
-| `Ctrl+Z` | Undo |
-| `Ctrl+Y` | Redo |
-| `Ctrl+C/V/X` | Copy/Paste/Cut |
-| `G` | Toggle Grid |
-
-## Compatibility
-
-| Dependency | Version |
-|------------|---------|
-| Bevy | 0.17 |
-| bevy_ecs_tilemap | 0.17 |
-| bevy_egui | 0.38 |
-| Rust | 1.76+ |
+Once that is done, any tag pushed to GitHub will trigger an itch.io release and use the tag as the [user version](https://itch.io/docs/butler/pushing.html#specifying-your-own-version-number).
 
 ## License
 
-Licensed under either of:
-- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
-- MIT license ([LICENSE-MIT](LICENSE-MIT))
+Licensed under either of
 
-## Contributing
+* Apache License, Version 2.0
+   ([LICENSE-APACHE-2.0](LICENSE-Apache-2.0) or <http://www.apache.org/licenses/LICENSE-2.0>)
+* MIT License
+   ([LICENSE-MIT](LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
+* CC0-1.0 License
+   ([LICENSE-CC0-1.0](LICENSE-CC0-1.0) or <https://creativecommons.org/publicdomain/zero/1.0/legalcode>)
 
-Contributions welcome! Please open an issue or submit a pull request.
+at your option.
+
+The Ducky sprite is CC-0 licensed by [Caz Creates Games](https://caz-creates-games.itch.io/ducky-2).
+
+## Contribution
+
+Unless you explicitly state otherwise, any contribution intentionally submitted
+for inclusion in the work by you, as defined in the Apache-2.0 license, shall be
+triple licensed as above, without any additional terms or conditions.
