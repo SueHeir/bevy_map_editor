@@ -46,3 +46,18 @@ bevy_egui = "0.38"
 
 # Platform-specific
 rfd = "0.15"
+
+# Clippy lints - allow common patterns in editor code
+[workspace.lints.clippy]
+too_many_arguments = "allow"
+type_complexity = "allow"
+collapsible_if = "allow"
+collapsible_else_if = "allow"
+map_entry = "allow"
+option_map_or_none = "allow"
+derivable_impls = "allow"
+field_reassign_with_default = "allow"
+ptr_arg = "allow"
+unnecessary_to_owned = "allow"
+unnecessary_owned_empty_strings = "allow"
+unnecessary_map_or = "allow"

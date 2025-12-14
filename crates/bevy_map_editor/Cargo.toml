@@ -10,6 +10,10 @@ keywords = ["bevy", "tilemap", "editor", "level", "terrain"]
 categories = ["game-development", "gui"]
 readme = "README.md"
 
+[[bin]]
+name = "bevy_map_editor"
+path = "src/bin/bevy_map_editor.rs"
+
 [dependencies]
 bevy_map_core = { workspace = true }
 bevy_map_autotile = { workspace = true }
@@ -33,3 +37,6 @@ default = ["native"]
 native = ["rfd"]
 runtime = ["bevy_map_runtime"]
 wasm = []
+
+[lints]
+workspace = true

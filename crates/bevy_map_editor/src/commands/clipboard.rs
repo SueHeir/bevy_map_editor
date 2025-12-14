@@ -37,7 +37,14 @@ impl TileSelection {
         self.tiles.is_empty()
     }
 
-    pub fn select_tile(&mut self, level_id: Uuid, layer_idx: usize, x: u32, y: u32, add_to_selection: bool) {
+    pub fn select_tile(
+        &mut self,
+        level_id: Uuid,
+        layer_idx: usize,
+        x: u32,
+        y: u32,
+        add_to_selection: bool,
+    ) {
         if !add_to_selection {
             self.clear();
         }
@@ -46,7 +53,17 @@ impl TileSelection {
         self.tiles.insert((level_id, layer_idx, x, y));
     }
 
-    pub fn select_rectangle(&mut self, level_id: Uuid, layer_idx: usize, x1: u32, y1: u32, x2: u32, y2: u32, add_to_selection: bool) {
+    #[allow(clippy::too_many_arguments)]
+    pub fn select_rectangle(
+        &mut self,
+        level_id: Uuid,
+        layer_idx: usize,
+        x1: u32,
+        y1: u32,
+        x2: u32,
+        y2: u32,
+        add_to_selection: bool,
+    ) {
         if !add_to_selection {
             self.clear();
         }
@@ -88,10 +105,21 @@ pub struct TileClipboard {
 }
 
 impl TileClipboard {
-    pub fn copy_selection(&mut self, selection: &TileSelection, project: &Project, _editor_state: &EditorState) {
-        let Some(level_id) = selection.level_id else { return };
-        let Some(layer_idx) = selection.layer_idx else { return };
-        let Some(level) = project.get_level(level_id) else { return };
+    pub fn copy_selection(
+        &mut self,
+        selection: &TileSelection,
+        project: &Project,
+        _editor_state: &EditorState,
+    ) {
+        let Some(level_id) = selection.level_id else {
+            return;
+        };
+        let Some(layer_idx) = selection.layer_idx else {
+            return;
+        };
+        let Some(level) = project.get_level(level_id) else {
+            return;
+        };
 
         if selection.is_empty() {
             return;
@@ -122,7 +150,11 @@ impl TileClipboard {
             }
         }
 
-        self.content = Some(ClipboardContent { width, height, tiles });
+        self.content = Some(ClipboardContent {
+            width,
+            height,
+            tiles,
+        });
     }
 
     pub fn has_content(&self) -> bool {

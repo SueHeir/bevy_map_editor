@@ -76,9 +76,7 @@ impl AssetLoader for MapProjectLoader {
         let project: MapProject = serde_json::from_slice(&bytes)?;
 
         // Validate the project
-        project
-            .validate()
-            .map_err(|e| MapLoadError::InvalidFormat(e))?;
+        project.validate().map_err(MapLoadError::InvalidFormat)?;
 
         Ok(project)
     }

@@ -7,7 +7,11 @@ use super::{ImageLoadState, TilesetTextureCache};
 use crate::project::Project;
 use crate::EditorState;
 
-pub fn render_tileset_palette(ui: &mut egui::Ui, editor_state: &mut EditorState, project: &Project) {
+pub fn render_tileset_palette(
+    ui: &mut egui::Ui,
+    editor_state: &mut EditorState,
+    project: &Project,
+) {
     render_tileset_palette_with_cache(ui, editor_state, project, None)
 }
 
@@ -23,7 +27,8 @@ pub fn render_tileset_palette_with_cache(
         ui.separator();
 
         // Tileset selector
-        let current_name = editor_state.selected_tileset
+        let current_name = editor_state
+            .selected_tileset
             .and_then(|id| project.tilesets.iter().find(|t| t.id == id))
             .map(|t| t.name.as_str())
             .unwrap_or("(none)");
@@ -32,11 +37,14 @@ pub fn render_tileset_palette_with_cache(
             .selected_text(current_name)
             .show_ui(ui, |ui| {
                 for tileset in &project.tilesets {
-                    if ui.selectable_value(
-                        &mut editor_state.selected_tileset,
-                        Some(tileset.id),
-                        &tileset.name
-                    ).clicked() {
+                    if ui
+                        .selectable_value(
+                            &mut editor_state.selected_tileset,
+                            Some(tileset.id),
+                            &tileset.name,
+                        )
+                        .clicked()
+                    {
                         // Clear selected tile when changing tileset
                         editor_state.selected_tile = None;
                     }
@@ -125,7 +133,8 @@ fn render_multi_image_tileset(
                 // Show tile info
                 ui.label(format!(
                     "{}x{} tiles ({})",
-                    image.columns, image.rows,
+                    image.columns,
+                    image.rows,
                     std::path::Path::new(&image.path)
                         .file_name()
                         .map(|f| f.to_string_lossy().to_string())
@@ -160,7 +169,7 @@ fn render_multi_image_tileset(
                             if image.columns == 0 || image.rows == 0 {
                                 ui.colored_label(
                                     egui::Color32::YELLOW,
-                                    "Tile size may be incorrect (0x0 tiles detected)"
+                                    "Tile size may be incorrect (0x0 tiles detected)",
                                 );
                             }
 
@@ -174,7 +183,8 @@ fn render_multi_image_tileset(
                                     for col in 0..image.columns {
                                         let local_index = row * image.columns + col;
                                         let virtual_index = virtual_offset + local_index;
-                                        let selected = editor_state.selected_tile == Some(virtual_index);
+                                        let selected =
+                                            editor_state.selected_tile == Some(virtual_index);
 
                                         let uv_min = egui::pos2(
                                             col as f32 * uv_tile_width,
@@ -187,12 +197,13 @@ fn render_multi_image_tileset(
 
                                         #[allow(deprecated)]
                                         let response = ui.add(
-                                            egui::ImageButton::new(
-                                                egui::load::SizedTexture::new(tex_id, display_size)
-                                            )
+                                            egui::ImageButton::new(egui::load::SizedTexture::new(
+                                                tex_id,
+                                                display_size,
+                                            ))
                                             .uv(egui::Rect::from_min_max(uv_min, uv_max))
                                             .selected(selected)
-                                            .rounding(0.0)
+                                            .rounding(0.0),
                                         );
 
                                         if response.clicked() {
@@ -208,7 +219,12 @@ fn render_multi_image_tileset(
                             }
                         } else {
                             // Fallback: numbered buttons (shouldn't happen if Loaded)
-                            render_fallback_tiles(ui, editor_state, image.tile_count(), virtual_offset);
+                            render_fallback_tiles(
+                                ui,
+                                editor_state,
+                                image.tile_count(),
+                                virtual_offset,
+                            );
                         }
                     }
                 }
@@ -233,7 +249,7 @@ fn render_fallback_tiles(
             let response = ui.add(
                 egui::Button::new(format!("{}", virtual_index))
                     .min_size(egui::vec2(28.0, 28.0))
-                    .selected(selected)
+                    .selected(selected),
             );
 
             if response.clicked() {
@@ -255,12 +271,13 @@ fn render_legacy_tileset(
     tileset_cache: Option<&TilesetTextureCache>,
 ) {
     // Get primary image texture using tileset_primary_image mapping
-    let texture_id = tileset_cache
-        .and_then(|cache| {
-            cache.tileset_primary_image.get(&tileset.id)
-                .and_then(|img_id| cache.loaded.get(img_id))
-                .map(|(_, tex_id, _, _)| *tex_id)
-        });
+    let texture_id = tileset_cache.and_then(|cache| {
+        cache
+            .tileset_primary_image
+            .get(&tileset.id)
+            .and_then(|img_id| cache.loaded.get(img_id))
+            .map(|(_, tex_id, _, _)| *tex_id)
+    });
 
     if let Some(tex_id) = texture_id {
         render_tileset_tiles(ui, editor_state, tileset, tex_id);
@@ -287,10 +304,7 @@ fn render_tileset_tiles(
                 let tile_index = row * tileset.columns + col;
                 let selected = editor_state.selected_tile == Some(tile_index);
 
-                let uv_min = egui::pos2(
-                    col as f32 * uv_tile_width,
-                    row as f32 * uv_tile_height,
-                );
+                let uv_min = egui::pos2(col as f32 * uv_tile_width, row as f32 * uv_tile_height);
                 let uv_max = egui::pos2(
                     (col + 1) as f32 * uv_tile_width,
                     (row + 1) as f32 * uv_tile_height,
@@ -298,12 +312,10 @@ fn render_tileset_tiles(
 
                 #[allow(deprecated)]
                 let response = ui.add(
-                    egui::ImageButton::new(
-                        egui::load::SizedTexture::new(texture_id, display_size)
-                    )
-                    .uv(egui::Rect::from_min_max(uv_min, uv_max))
-                    .selected(selected)
-                    .rounding(0.0)
+                    egui::ImageButton::new(egui::load::SizedTexture::new(texture_id, display_size))
+                        .uv(egui::Rect::from_min_max(uv_min, uv_max))
+                        .selected(selected)
+                        .rounding(0.0),
                 );
 
                 if response.clicked() {
@@ -329,7 +341,7 @@ fn render_tileset_placeholder(
             let response = ui.add(
                 egui::Button::new(format!("{}", i))
                     .min_size(egui::vec2(28.0, 28.0))
-                    .selected(selected)
+                    .selected(selected),
             );
 
             if response.clicked() {
@@ -345,6 +357,7 @@ fn render_tileset_placeholder(
 
 /// Open a file dialog to select a tileset image (native only)
 #[cfg(not(target_arch = "wasm32"))]
+#[allow(dead_code)]
 pub fn open_tileset_dialog() -> Option<String> {
     use rfd::FileDialog;
 
@@ -357,6 +370,7 @@ pub fn open_tileset_dialog() -> Option<String> {
 }
 
 #[cfg(target_arch = "wasm32")]
+#[allow(dead_code)]
 pub fn open_tileset_dialog() -> Option<String> {
     None
 }

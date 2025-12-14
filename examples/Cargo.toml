@@ -29,10 +29,6 @@ path = "basic_editor/main.rs"
 name = "runtime_loader"
 path = "runtime_loader/main.rs"
 
-[[example]]
-name = "procedural_terrain"
-path = "procedural_terrain/main.rs"
-
 # Animation examples - auto vs manual loading
 [[example]]
 name = "animation_auto_demo"
@@ -59,3 +55,6 @@ path = "custom_entities/demo.rs"
 [[example]]
 name = "tileset_demo"
 path = "tileset/demo.rs"
+
+[lints]
+workspace = true

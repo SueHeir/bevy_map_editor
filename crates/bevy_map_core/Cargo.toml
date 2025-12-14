@@ -21,3 +21,6 @@ uuid = { workspace = true }
 bevy = { workspace = true, optional = true }
 bevy_map_animation = { path = "../bevy_map_animation" }
 bevy_map_dialogue = { path = "../bevy_map_dialogue" }
+
+[lints]
+workspace = true
