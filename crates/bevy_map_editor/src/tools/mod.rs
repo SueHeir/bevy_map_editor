@@ -56,6 +56,8 @@ pub struct ViewportInputState {
     pub last_preview_target: Option<bevy_map_autotile::PaintTarget>,
     /// Last world position when painting (for line interpolation during drag)
     pub last_paint_world_pos: Option<Vec2>,
+    /// Whether full-tile mode was active for the last preview (to detect mode changes)
+    pub last_preview_full_tile_mode: bool,
 }
 
 /// Tracks tile changes during a painting stroke for undo support
@@ -421,6 +423,10 @@ fn handle_viewport_input(
         && editor_state.terrain_paint_state.is_terrain_mode
         && editor_state.current_tool == EditorTool::Terrain
     {
+        // Detect full-tile mode (Ctrl key) for preview
+        let full_tile_mode = keyboard.pressed(KeyCode::ControlLeft)
+            || keyboard.pressed(KeyCode::ControlRight);
+
         // Only recalculate if we have terrain set info to compute the paint target
         if let (Some(terrain_set_id), Some(_)) = (
             editor_state.selected_terrain_set,
@@ -441,10 +447,18 @@ fn handle_viewport_input(
                     terrain_set.set_type,
                 );
 
-                // Only recalculate preview if target changed
-                if input_state.last_preview_target != Some(paint_target) {
+                // Recalculate preview if target changed OR full_tile_mode changed
+                let mode_changed = input_state.last_preview_full_tile_mode != full_tile_mode;
+                if input_state.last_preview_target != Some(paint_target) || mode_changed {
                     input_state.last_preview_target = Some(paint_target);
-                    calculate_terrain_preview(&mut editor_state, &project, world_pos);
+                    input_state.last_preview_full_tile_mode = full_tile_mode;
+                    calculate_terrain_preview(
+                        &mut editor_state,
+                        &project,
+                        world_pos,
+                        tile_size,
+                        full_tile_mode,
+                    );
                 }
             }
         }
@@ -1437,11 +1451,14 @@ fn paint_terrain_set_tile(
         return;
     };
 
-    let terrain_set = match project.autotile_config.get_terrain_set(terrain_set_id) {
-        Some(ts) => ts.clone(),
-        None => return,
+    // Extract terrain set data we need before mutable access to levels
+    // (set_type for paint target calculation, tileset_id for validation)
+    let (set_type, selected_tileset) = {
+        let Some(ts) = project.autotile_config.get_terrain_set(terrain_set_id) else {
+            return;
+        };
+        (ts.set_type, ts.tileset_id)
     };
-    let selected_tileset = terrain_set.tileset_id;
 
     let tile_size = project
         .tilesets
@@ -1495,14 +1512,14 @@ fn paint_terrain_set_tile(
         ]
     } else if let Some(last_pos) = input_state.last_paint_world_pos {
         // Normal mode with drag: interpolate along line
-        get_paint_targets_along_line(last_pos, world_pos, tile_size, terrain_set.set_type)
+        get_paint_targets_along_line(last_pos, world_pos, tile_size, set_type)
     } else {
         // Normal mode, first paint: just paint at current position
         vec![bevy_map_autotile::get_paint_target(
             world_pos.x,
             world_pos.y,
             tile_size,
-            terrain_set.set_type,
+            set_type,
         )]
     };
 
@@ -1518,7 +1535,9 @@ fn paint_terrain_set_tile(
         return;
     }
 
-    let Some(level) = project.get_level_mut(level_id) else {
+    // Use split borrowing: access levels and autotile_config as separate fields
+    // This avoids cloning the entire TerrainSet
+    let Some(level) = project.levels.iter_mut().find(|l| l.id == level_id) else {
         return;
     };
     let level_width = level.width;
@@ -1564,6 +1583,11 @@ fn paint_terrain_set_tile(
         stroke_tracker.description = "Paint Terrain".to_string();
     }
 
+    // Get terrain set reference for painting (split borrow allows this)
+    let Some(terrain_set) = project.autotile_config.get_terrain_set(terrain_set_id) else {
+        return;
+    };
+
     // Paint all new targets
     for paint_target in &new_targets {
         // Calculate center coordinates for snapshot region
@@ -1591,7 +1615,7 @@ fn paint_terrain_set_tile(
             level_width,
             level_height,
             *paint_target,
-            &terrain_set,
+            terrain_set,
             terrain_idx,
             AUTOTILE_DEBUG,
         );
@@ -1771,13 +1795,16 @@ fn fill_terrain_rectangle(
         return;
     }
 
-    let terrain_set = match project.autotile_config.get_terrain_set(terrain_set_id) {
-        Some(ts) => ts.clone(),
-        None => return,
+    // Extract tileset_id before mutable access to levels
+    let selected_tileset = {
+        let Some(ts) = project.autotile_config.get_terrain_set(terrain_set_id) else {
+            return;
+        };
+        ts.tileset_id
     };
-    let selected_tileset = terrain_set.tileset_id;
 
-    let Some(level) = project.get_level_mut(level_id) else {
+    // Use split borrowing - access levels directly
+    let Some(level) = project.levels.iter().find(|l| l.id == level_id) else {
         return;
     };
     let level_width = level.width as i32;
@@ -1803,7 +1830,7 @@ fn fill_terrain_rectangle(
         update_max_y,
     );
 
-    let Some(level) = project.get_level_mut(level_id) else {
+    let Some(level) = project.levels.iter_mut().find(|l| l.id == level_id) else {
         return;
     };
 
@@ -1835,6 +1862,11 @@ fn fill_terrain_rectangle(
             return;
         }
     } else {
+        return;
+    };
+
+    // Get terrain set reference (split borrow allows this after getting tiles from levels)
+    let Some(terrain_set) = project.autotile_config.get_terrain_set(terrain_set_id) else {
         return;
     };
 
@@ -1985,7 +2017,13 @@ fn finalize_paint_stroke(
 }
 
 /// Calculate terrain preview tiles for the current mouse position
-fn calculate_terrain_preview(editor_state: &mut EditorState, project: &Project, world_pos: Vec2) {
+fn calculate_terrain_preview(
+    editor_state: &mut EditorState,
+    project: &Project,
+    world_pos: Vec2,
+    tile_size: f32,
+    full_tile_mode: bool,
+) {
     let Some(level_id) = editor_state.selected_level else {
         editor_state.terrain_preview.active = false;
         return;
@@ -2011,12 +2049,6 @@ fn calculate_terrain_preview(editor_state: &mut EditorState, project: &Project, 
     };
 
     let tileset_id = terrain_set.tileset_id;
-    let tile_size = project
-        .tilesets
-        .iter()
-        .find(|t| t.id == tileset_id)
-        .map(|t| t.tile_size as f32)
-        .unwrap_or(32.0);
 
     let Some(level) = project.levels.iter().find(|l| l.id == level_id) else {
         editor_state.terrain_preview.active = false;
@@ -2035,19 +2067,65 @@ fn calculate_terrain_preview(editor_state: &mut EditorState, project: &Project, 
         return;
     };
 
-    let paint_target = bevy_map_autotile::get_paint_target(
-        world_pos.x,
-        world_pos.y,
-        tile_size,
-        terrain_set.set_type,
-    );
+    // Generate paint targets based on mode
+    let paint_targets = if full_tile_mode {
+        // Full-tile mode: generate all 8 paint targets (4 corners + 4 edges) for the tile
+        let tile_x = (world_pos.x / tile_size).floor() as u32;
+        let tile_y = (world_pos.y / tile_size).floor() as u32;
 
-    // Calculate preview using the autotile algorithm on cloned data
-    let preview_tiles = bevy_map_autotile::preview_terrain_at_target(
+        vec![
+            // 4 corners of the tile
+            bevy_map_autotile::PaintTarget::Corner {
+                corner_x: tile_x,
+                corner_y: tile_y,
+            },
+            bevy_map_autotile::PaintTarget::Corner {
+                corner_x: tile_x + 1,
+                corner_y: tile_y,
+            },
+            bevy_map_autotile::PaintTarget::Corner {
+                corner_x: tile_x,
+                corner_y: tile_y + 1,
+            },
+            bevy_map_autotile::PaintTarget::Corner {
+                corner_x: tile_x + 1,
+                corner_y: tile_y + 1,
+            },
+            // 4 edges of the tile
+            bevy_map_autotile::PaintTarget::HorizontalEdge {
+                tile_x,
+                edge_y: tile_y,
+            },
+            bevy_map_autotile::PaintTarget::HorizontalEdge {
+                tile_x,
+                edge_y: tile_y + 1,
+            },
+            bevy_map_autotile::PaintTarget::VerticalEdge {
+                edge_x: tile_x,
+                tile_y,
+            },
+            bevy_map_autotile::PaintTarget::VerticalEdge {
+                edge_x: tile_x + 1,
+                tile_y,
+            },
+        ]
+    } else {
+        // Normal mode: single paint target based on cursor position
+        vec![bevy_map_autotile::get_paint_target(
+            world_pos.x,
+            world_pos.y,
+            tile_size,
+            terrain_set.set_type,
+        )]
+    };
+
+    // Calculate preview using the autotile algorithm
+    // For full-tile mode, we need to preview all targets together
+    let preview_tiles = bevy_map_autotile::preview_terrain_at_targets(
         tiles,
         level.width,
         level.height,
-        paint_target,
+        &paint_targets,
         terrain_set,
         terrain_idx,
     );

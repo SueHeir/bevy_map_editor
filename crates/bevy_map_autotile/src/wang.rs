@@ -13,7 +13,7 @@
 use crate::terrain::{TerrainSet, TerrainSetType, TileTerrainData};
 use rand::prelude::*;
 use rand::rngs::SmallRng;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 // =============================================================================
 // TerrainId Type
@@ -1289,6 +1289,71 @@ pub fn preview_terrain_at_target(
     // Find changed tiles
     let mut result = Vec::new();
     for (x, y) in affected_region {
+        let idx = (y as u32 * width + x as u32) as usize;
+        let old = original.get(&(x, y)).copied().flatten();
+        let new = preview_tiles.get(idx).copied().flatten();
+
+        if new != old {
+            if let Some(tile_id) = new {
+                result.push(((x, y), tile_id));
+            }
+        }
+    }
+
+    result
+}
+
+/// Calculate preview tiles for multiple paint targets without modifying actual tile data
+/// This is more efficient than calling preview_terrain_at_target multiple times
+/// because it shares the working copy and collects all changes at once.
+pub fn preview_terrain_at_targets(
+    tiles: &[Option<u32>],
+    width: u32,
+    height: u32,
+    targets: &[PaintTarget],
+    terrain_set: &TerrainSet,
+    terrain_index: usize,
+) -> Vec<((i32, i32), u32)> {
+    if targets.is_empty() {
+        return Vec::new();
+    }
+
+    // Collect all affected tiles across all targets
+    let mut all_affected: HashSet<(i32, i32)> = HashSet::new();
+    for target in targets {
+        let region = get_affected_region(*target, width, height, terrain_set.set_type);
+        all_affected.extend(region);
+    }
+
+    if all_affected.is_empty() {
+        return Vec::new();
+    }
+
+    // Snapshot original tiles in combined affected region
+    let original: HashMap<(i32, i32), Option<u32>> = all_affected
+        .iter()
+        .map(|&(x, y)| {
+            let idx = (y as u32 * width + x as u32) as usize;
+            ((x, y), tiles.get(idx).copied().flatten())
+        })
+        .collect();
+
+    // Clone and apply all targets
+    let mut preview_tiles = tiles.to_vec();
+    for target in targets {
+        paint_terrain_at_target(
+            &mut preview_tiles,
+            width,
+            height,
+            *target,
+            terrain_set,
+            terrain_index,
+        );
+    }
+
+    // Find changed tiles
+    let mut result = Vec::new();
+    for (x, y) in all_affected {
         let idx = (y as u32 * width + x as u32) as usize;
         let old = original.get(&(x, y)).copied().flatten();
         let new = preview_tiles.get(idx).copied().flatten();
