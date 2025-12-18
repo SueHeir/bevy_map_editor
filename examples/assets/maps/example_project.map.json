@@ -131,6 +131,53 @@
           }
         ]
       },
+      "Enemy": {
+        "color": "#800000",
+        "icon": null,
+        "placeable": true,
+        "marker_size": 16,
+        "properties": [
+          {
+            "name": "name",
+            "type": "string",
+            "required": true,
+            "default": null,
+            "min": null,
+            "max": null,
+            "showIf": null,
+            "enumType": null,
+            "refType": null,
+            "itemType": null,
+            "embeddedType": null
+          },
+          {
+            "name": "level",
+            "type": "float",
+            "required": false,
+            "default": null,
+            "min": null,
+            "max": null,
+            "showIf": null,
+            "enumType": null,
+            "refType": null,
+            "itemType": null,
+            "embeddedType": null
+          },
+          {
+            "name": "exp",
+            "type": "float",
+            "required": false,
+            "default": null,
+            "min": null,
+            "max": null,
+            "showIf": null,
+            "enumType": null,
+            "refType": null,
+            "itemType": null,
+            "embeddedType": null
+          }
+        ]
+      },
       "NPC": {
         "color": "#04d500",
         "icon": null,
@@ -190,53 +237,6 @@
             "embeddedType": null
           }
         ]
-      },
-      "Enemy": {
-        "color": "#800000",
-        "icon": null,
-        "placeable": true,
-        "marker_size": 16,
-        "properties": [
-          {
-            "name": "name",
-            "type": "string",
-            "required": true,
-            "default": null,
-            "min": null,
-            "max": null,
-            "showIf": null,
-            "enumType": null,
-            "refType": null,
-            "itemType": null,
-            "embeddedType": null
-          },
-          {
-            "name": "level",
-            "type": "float",
-            "required": false,
-            "default": null,
-            "min": null,
-            "max": null,
-            "showIf": null,
-            "enumType": null,
-            "refType": null,
-            "itemType": null,
-            "embeddedType": null
-          },
-          {
-            "name": "exp",
-            "type": "float",
-            "required": false,
-            "default": null,
-            "min": null,
-            "max": null,
-            "showIf": null,
-            "enumType": null,
-            "refType": null,
-            "itemType": null,
-            "embeddedType": null
-          }
-        ]
       }
     },
     "embedded_types": {}
@@ -250,7 +250,7 @@
         {
           "id": "d9d8deb0-b39d-47df-9f11-a0bfe40fdaa4",
           "name": "Main",
-          "path": "tiles/TilesetFloor.png",
+          "path": "C:/Dev/Workspace/bevy_map_editor/examples/assets/tiles/TilesetFloor.png",
           "columns": 22,
           "rows": 26
         }
@@ -294,7 +294,7 @@
           }
         }
       },
-      "path": "tiles/TilesetFloor.png",
+      "path": "C:/Dev/Workspace/bevy_map_editor/examples/assets/tiles/TilesetFloor.png",
       "columns": 22,
       "rows": 26
     },
@@ -306,12 +306,12 @@
         {
           "id": "6f64d3d9-2795-4976-a689-e51367c9f913",
           "name": "Main",
-          "path": "tiles/TilesetNature.png",
+          "path": "C:/Dev/Workspace/bevy_map_editor/examples/assets/tiles/TilesetNature.png",
           "columns": 24,
           "rows": 21
         }
       ],
-      "path": "tiles/TilesetNature.png",
+      "path": "C:/Dev/Workspace/bevy_map_editor/examples/assets/tiles/TilesetNature.png",
       "columns": 24,
       "rows": 21
     }
@@ -434,10 +434,10 @@
             48.0
           ],
           "properties": {
-            "dialogue": "00000000-0000-0000-0000-000000000003",
-            "npc_type": "Vendor",
+            "name": "Merchant_With_Dialogue",
             "items_for_sale": [],
-            "name": "Merchant_With_Dialogue"
+            "npc_type": "Vendor",
+            "dialogue": "00000000-0000-0000-0000-000000000003"
           }
         }
       ]
@@ -2998,9 +2998,9 @@
             568.0
           ],
           "properties": {
-            "level": 0.0,
             "exp": 0.0,
-            "name": "wolf_2"
+            "name": "wolf_2",
+            "level": 0.0
           }
         },
         {
@@ -3011,9 +3011,9 @@
             552.0
           ],
           "properties": {
+            "name": "wolf_3",
             "level": 0.0,
-            "exp": 0.0,
-            "name": "wolf_3"
+            "exp": 0.0
           }
         },
         {
@@ -3024,12 +3024,12 @@
             432.0
           ],
           "properties": {
-            "npc_type": "Vendor",
+            "dialogue": null,
             "items_for_sale": [
               "1d32ddd6-aa77-4338-a693-c42f4e9093fb"
             ],
-            "name": "Vendor_With_Items",
-            "dialogue": null
+            "npc_type": "Vendor",
+            "name": "Vendor_With_Items"
           }
         },
         {
@@ -3040,10 +3040,10 @@
             480.0
           ],
           "properties": {
-            "name": "QuestGiver_Joe",
             "npc_type": "QuestGiver",
             "dialogue": null,
-            "items_for_sale": []
+            "items_for_sale": [],
+            "name": "QuestGiver_Joe"
           }
         },
         {
@@ -3054,10 +3054,10 @@
             320.0
           ],
           "properties": {
-            "dialogue": null,
-            "npc_type": "QuestGiver",
             "name": "WeaponTrainer_Jim",
-            "items_for_sale": []
+            "items_for_sale": [],
+            "npc_type": "QuestGiver",
+            "dialogue": null
           }
         }
       ]
@@ -3095,51 +3095,25 @@
           }
         ],
         "tile_terrains": {
-          "226": {
+          "138": {
             "terrains": [
-              0,
-              1,
-              1,
-              1,
-              0,
-              0,
-              0,
-              1,
-              1
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
             ]
           },
-          "246": {
+          "228": {
             "terrains": [
               0,
               1,
               0,
               1,
-              0,
-              1,
-              0,
-              0,
-              1
-            ]
-          },
-          "249": {
-            "terrains": [
-              0,
-              1,
-              0,
-              0,
-              0,
-              1,
-              0,
-              1,
-              1
-            ]
-          },
-          "227": {
-            "terrains": [
-              0,
-              1,
-              0,
-              0,
               0,
               0,
               0,
@@ -3160,67 +3134,41 @@
               1
             ]
           },
-          "178": {
+          "154": {
             "terrains": [
-              1,
-              1,
               0,
               0,
               0,
               1,
               1,
               1,
+              0,
+              0,
               1
             ]
           },
-          "223": {
+          "264": {
             "terrains": [
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
             ]
           },
-          "138": {
-            "terrains": [
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null,
-              null
-            ]
-          },
-          "156": {
-            "terrains": [
-              0,
-              0,
-              0,
-              0,
-              0,
-              1,
-              1,
-              1,
-              1
-            ]
-          },
-          "248": {
+          "206": {
             "terrains": [
               0,
               1,
-              1,
-              1,
-              1,
-              1,
               0,
+              1,
+              1,
+              1,
+              1,
               1,
               1
             ]
@@ -3238,11 +3186,11 @@
               1
             ]
           },
-          "247": {
+          "181": {
             "terrains": [
               1,
               1,
-              0,
+              1,
               1,
               0,
               1,
@@ -3251,27 +3199,14 @@
               1
             ]
           },
-          "229": {
-            "terrains": [
-              0,
-              1,
-              1,
-              1,
-              0,
-              1,
-              0,
-              1,
-              1
-            ]
-          },
-          "157": {
+          "220": {
             "terrains": [
               0,
               0,
               0,
-              0,
-              0,
               1,
+              0,
+              0,
               0,
               0,
               1
@@ -3282,19 +3217,6 @@
               0,
               1,
               0,
-              1,
-              0,
-              1,
-              0,
-              1,
-              1
-            ]
-          },
-          "184": {
-            "terrains": [
-              1,
-              1,
-              1,
               1,
               0,
               1,
@@ -3316,72 +3238,20 @@
               null
             ]
           },
-          "160": {
-            "terrains": [
-              0,
-              0,
-              0,
-              1,
-              1,
-              1,
-              0,
-              1,
-              1
-            ]
-          },
-          "155": {
-            "terrains": [
-              0,
-              0,
-              0,
-              1,
-              1,
-              1,
-              1,
-              1,
-              1
-            ]
-          },
-          "224": {
-            "terrains": [
-              0,
-              1,
-              0,
-              1,
-              0,
-              0,
-              0,
-              0,
-              1
-            ]
-          },
-          "225": {
+          "230": {
             "terrains": [
               1,
               1,
               0,
               1,
               0,
-              0,
+              1,
               0,
               1,
               1
             ]
           },
-          "198": {
-            "terrains": [
-              0,
-              1,
-              1,
-              1,
-              0,
-              0,
-              0,
-              0,
-              1
-            ]
-          },
-          "132": {
+          "223": {
             "terrains": [
               null,
               null,
@@ -3394,14 +3264,14 @@
               null
             ]
           },
-          "161": {
+          "200": {
             "terrains": [
-              0,
-              0,
-              0,
-              0,
-              0,
               1,
+              1,
+              0,
+              0,
+              0,
+              0,
               0,
               1,
               1
@@ -3420,6 +3290,45 @@
               1
             ]
           },
+          "199": {
+            "terrains": [
+              1,
+              1,
+              1,
+              1,
+              0,
+              0,
+              0,
+              1,
+              1
+            ]
+          },
+          "161": {
+            "terrains": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              1,
+              1
+            ]
+          },
+          "205": {
+            "terrains": [
+              0,
+              1,
+              0,
+              0,
+              0,
+              1,
+              1,
+              1,
+              1
+            ]
+          },
           "179": {
             "terrains": [
               0,
@@ -3433,11 +3342,24 @@
               1
             ]
           },
-          "181": {
+          "222": {
+            "terrains": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              1
+            ]
+          },
+          "247": {
             "terrains": [
               1,
               1,
-              1,
+              0,
               1,
               0,
               1,
@@ -3446,13 +3368,130 @@
               1
             ]
           },
-          "163": {
+          "160": {
+            "terrains": [
+              0,
+              0,
+              0,
+              1,
+              1,
+              1,
+              0,
+              1,
+              1
+            ]
+          },
+          "203": {
             "terrains": [
               1,
               1,
               0,
               1,
               1,
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          "225": {
+            "terrains": [
+              1,
+              1,
+              0,
+              1,
+              0,
+              0,
+              0,
+              1,
+              1
+            ]
+          },
+          "158": {
+            "terrains": [
+              0,
+              0,
+              0,
+              1,
+              0,
+              1,
+              0,
+              0,
+              1
+            ]
+          },
+          "132": {
+            "terrains": [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null
+            ]
+          },
+          "208": {
+            "terrains": [
+              0,
+              1,
+              0,
+              1,
+              0,
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          "246": {
+            "terrains": [
+              0,
+              1,
+              0,
+              1,
+              0,
+              1,
+              0,
+              0,
+              1
+            ]
+          },
+          "248": {
+            "terrains": [
+              0,
+              1,
+              1,
+              1,
+              1,
+              1,
+              0,
+              1,
+              1
+            ]
+          },
+          "227": {
+            "terrains": [
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              1
+            ]
+          },
+          "162": {
+            "terrains": [
+              0,
+              0,
+              0,
+              1,
+              0,
               1,
               0,
               1,
@@ -3472,71 +3511,6 @@
               1
             ]
           },
-          "220": {
-            "terrains": [
-              0,
-              0,
-              0,
-              1,
-              0,
-              0,
-              0,
-              0,
-              1
-            ]
-          },
-          "204": {
-            "terrains": [
-              0,
-              1,
-              1,
-              1,
-              1,
-              1,
-              1,
-              1,
-              1
-            ]
-          },
-          "222": {
-            "terrains": [
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              1,
-              1
-            ]
-          },
-          "207": {
-            "terrains": [
-              0,
-              1,
-              0,
-              1,
-              1,
-              1,
-              0,
-              1,
-              1
-            ]
-          },
-          "159": {
-            "terrains": [
-              0,
-              0,
-              0,
-              1,
-              0,
-              1,
-              1,
-              1,
-              1
-            ]
-          },
           "185": {
             "terrains": [
               0,
@@ -3550,141 +3524,11 @@
               1
             ]
           },
-          "176": {
-            "terrains": [
-              0,
-              1,
-              1,
-              1,
-              1,
-              1,
-              0,
-              0,
-              1
-            ]
-          },
-          "200": {
-            "terrains": [
-              1,
-              1,
-              0,
-              0,
-              0,
-              0,
-              0,
-              1,
-              1
-            ]
-          },
-          "230": {
-            "terrains": [
-              1,
-              1,
-              0,
-              1,
-              0,
-              1,
-              0,
-              1,
-              1
-            ]
-          },
-          "158": {
-            "terrains": [
-              0,
-              0,
-              0,
-              1,
-              0,
-              1,
-              0,
-              0,
-              1
-            ]
-          },
-          "221": {
-            "terrains": [
-              0,
-              0,
-              0,
-              1,
-              0,
-              0,
-              0,
-              1,
-              1
-            ]
-          },
-          "228": {
-            "terrains": [
-              0,
-              1,
-              0,
-              1,
-              0,
-              0,
-              0,
-              1,
-              1
-            ]
-          },
-          "199": {
+          "177": {
             "terrains": [
               1,
               1,
               1,
-              1,
-              0,
-              0,
-              0,
-              1,
-              1
-            ]
-          },
-          "154": {
-            "terrains": [
-              0,
-              0,
-              0,
-              1,
-              1,
-              1,
-              0,
-              0,
-              1
-            ]
-          },
-          "205": {
-            "terrains": [
-              0,
-              1,
-              0,
-              0,
-              0,
-              1,
-              1,
-              1,
-              1
-            ]
-          },
-          "208": {
-            "terrains": [
-              0,
-              1,
-              0,
-              1,
-              0,
-              1,
-              1,
-              1,
-              1
-            ]
-          },
-          "206": {
-            "terrains": [
-              0,
-              1,
-              0,
               1,
               1,
               1,
@@ -3693,40 +3537,14 @@
               1
             ]
           },
-          "264": {
+          "226": {
             "terrains": [
               0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0
-            ]
-          },
-          "203": {
-            "terrains": [
-              1,
-              1,
-              0,
               1,
               1,
               1,
-              1,
-              1,
-              1
-            ]
-          },
-          "162": {
-            "terrains": [
               0,
               0,
-              0,
-              1,
-              0,
-              1,
               0,
               1,
               1
@@ -3745,9 +3563,191 @@
               1
             ]
           },
-          "177": {
+          "249": {
+            "terrains": [
+              0,
+              1,
+              0,
+              0,
+              0,
+              1,
+              0,
+              1,
+              1
+            ]
+          },
+          "207": {
+            "terrains": [
+              0,
+              1,
+              0,
+              1,
+              1,
+              1,
+              0,
+              1,
+              1
+            ]
+          },
+          "221": {
+            "terrains": [
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              1,
+              1
+            ]
+          },
+          "184": {
             "terrains": [
               1,
+              1,
+              1,
+              1,
+              0,
+              1,
+              0,
+              1,
+              1
+            ]
+          },
+          "229": {
+            "terrains": [
+              0,
+              1,
+              1,
+              1,
+              0,
+              1,
+              0,
+              1,
+              1
+            ]
+          },
+          "224": {
+            "terrains": [
+              0,
+              1,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              1
+            ]
+          },
+          "198": {
+            "terrains": [
+              0,
+              1,
+              1,
+              1,
+              0,
+              0,
+              0,
+              0,
+              1
+            ]
+          },
+          "163": {
+            "terrains": [
+              1,
+              1,
+              0,
+              1,
+              1,
+              1,
+              0,
+              1,
+              1
+            ]
+          },
+          "176": {
+            "terrains": [
+              0,
+              1,
+              1,
+              1,
+              1,
+              1,
+              0,
+              0,
+              1
+            ]
+          },
+          "159": {
+            "terrains": [
+              0,
+              0,
+              0,
+              1,
+              0,
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          "156": {
+            "terrains": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          "178": {
+            "terrains": [
+              1,
+              1,
+              0,
+              0,
+              0,
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          "157": {
+            "terrains": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              1
+            ]
+          },
+          "155": {
+            "terrains": [
+              0,
+              0,
+              0,
+              1,
+              1,
+              1,
+              1,
+              1,
+              1
+            ]
+          },
+          "204": {
+            "terrains": [
+              0,
               1,
               1,
               1,
@@ -3818,32 +3818,18 @@
       "name": "merchant_greeting",
       "start_node": "start",
       "nodes": {
-        "browse": {
-          "id": "browse",
+        "buy": {
+          "id": "buy",
           "node_type": "text",
           "speaker": "Merchant",
-          "text": "No problem! Feel free to look around.",
+          "text": "Excellent! I have swords, potions, and rare artifacts. Take a look!",
           "choices": [],
           "next_node": "bye",
           "condition": null,
           "action": null,
           "position": [
             298.0,
-            300.0
-          ]
-        },
-        "end": {
-          "id": "end",
-          "node_type": "end",
-          "speaker": "",
-          "text": "",
-          "choices": [],
-          "next_node": null,
-          "condition": null,
-          "action": null,
-          "position": [
-            769.0,
-            147.0
+            20.0
           ]
         },
         "bye": {
@@ -3860,18 +3846,32 @@
             146.0
           ]
         },
-        "buy": {
-          "id": "buy",
+        "end": {
+          "id": "end",
+          "node_type": "end",
+          "speaker": "",
+          "text": "",
+          "choices": [],
+          "next_node": null,
+          "condition": null,
+          "action": null,
+          "position": [
+            769.0,
+            147.0
+          ]
+        },
+        "browse": {
+          "id": "browse",
           "node_type": "text",
           "speaker": "Merchant",
-          "text": "Excellent! I have swords, potions, and rare artifacts. Take a look!",
+          "text": "No problem! Feel free to look around.",
           "choices": [],
           "next_node": "bye",
           "condition": null,
           "action": null,
           "position": [
             298.0,
-            20.0
+            300.0
           ]
         },
         "start": {

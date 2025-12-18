@@ -29,6 +29,10 @@ pub struct TilesetEditorState {
     pub terrain_tile_zoom: f32,
     /// State for the collision editor tab
     pub collision_editor: CollisionEditorState,
+    /// Active shift+drag selection start for tile merging (col, row, image_idx)
+    pub merge_drag_start: Option<(u32, u32, usize)>,
+    /// Active shift+drag selection current position for tile merging (col, row)
+    pub merge_drag_current: Option<(u32, u32)>,
 }
 
 impl Default for TilesetEditorState {
@@ -40,6 +44,8 @@ impl Default for TilesetEditorState {
             selected_tile_for_properties: None,
             terrain_tile_zoom: 1.0, // Default to 1x zoom (32px tiles)
             collision_editor: CollisionEditorState::default(),
+            merge_drag_start: None,
+            merge_drag_current: None,
         }
     }
 }
@@ -738,8 +744,6 @@ fn render_terrain_sets_tab(
     egui::SidePanel::left("terrain_list_panel")
         .resizable(true)
         .default_width(250.0)
-        .min_width(150.0)
-        .max_width(400.0)
         .show_inside(ui, |ui| {
             egui::ScrollArea::vertical()
                 .auto_shrink([false, false])
@@ -1182,232 +1186,303 @@ fn render_tile_properties_tab(
         .find(|t| t.id == tileset_id)
         .map(|t| (t.tile_size, t.images.clone(), !t.images.is_empty()));
 
-    // Split into left panel (tile selector) and right panel (properties editor)
-    ui.horizontal(|ui| {
-        // Left panel: Tile selector
-        ui.vertical(|ui| {
-            ui.set_min_width(250.0);
+    // Left panel: Tile selector (resizable)
+    egui::SidePanel::left("tile_properties_selector")
+        .resizable(true)
+        .default_width(250.0)
+        .show_inside(ui, |ui| {
             ui.heading("Select Tile");
 
             if let Some((tile_size, images, has_images)) = tileset_data.clone() {
                 if !has_images {
                     ui.label("No images in tileset");
                 } else {
-                    egui::ScrollArea::both().max_height(400.0).show(ui, |ui| {
-                        render_tile_selector_for_properties(
-                            ui,
-                            editor_state,
-                            tile_size,
-                            &images,
-                            cache,
-                        );
-                    });
+                    egui::ScrollArea::both()
+                        .auto_shrink([false, false])
+                        .show(ui, |ui| {
+                            render_tile_selector_for_properties(
+                                ui,
+                                editor_state,
+                                project,
+                                tileset_id,
+                                tile_size,
+                                &images,
+                                cache,
+                            );
+                        });
                 }
             }
         });
 
-        ui.separator();
+    // Right panel: Property editor (fills remaining space)
+    egui::CentralPanel::default().show_inside(ui, |ui| {
+        ui.heading("Tile Properties");
 
-        // Right panel: Property editor
-        ui.vertical(|ui| {
-            ui.heading("Tile Properties");
+        if let Some(tile_idx) = editor_state
+            .tileset_editor_state
+            .selected_tile_for_properties
+        {
+            ui.label(format!("Editing Tile {}", tile_idx));
+            ui.separator();
 
-            if let Some(tile_idx) = editor_state
-                .tileset_editor_state
-                .selected_tile_for_properties
-            {
-                ui.label(format!("Editing Tile {}", tile_idx));
-                ui.separator();
+            // Get current properties (or default)
+            let tileset = project.tilesets.iter().find(|t| t.id == tileset_id);
+            let current_props = tileset
+                .and_then(|t| t.get_tile_properties(tile_idx))
+                .cloned()
+                .unwrap_or_default();
 
-                // Get current properties (or default)
-                let tileset = project.tilesets.iter().find(|t| t.id == tileset_id);
-                let current_props = tileset
-                    .and_then(|t| t.get_tile_properties(tile_idx))
-                    .cloned()
-                    .unwrap_or_default();
+            egui::ScrollArea::vertical()
+                .auto_shrink([false, false])
+                .show(ui, |ui| {
+                    // Collision settings
+                    ui.heading("Collision");
 
-                // Collision settings
-                ui.heading("Collision");
+                    let collision_data = current_props.collision.clone();
+                    let mut has_collision = collision_data.has_collision();
 
-                let collision_data = current_props.collision.clone();
-                let mut has_collision = collision_data.has_collision();
-
-                if ui.checkbox(&mut has_collision, "Has collision").changed() {
-                    if let Some(tileset) = project.tilesets.iter_mut().find(|t| t.id == tileset_id)
-                    {
-                        tileset.set_tile_full_collision(tile_idx, has_collision);
-                        project.mark_dirty();
+                    if ui.checkbox(&mut has_collision, "Has collision").changed() {
+                        if let Some(tileset) =
+                            project.tilesets.iter_mut().find(|t| t.id == tileset_id)
+                        {
+                            tileset.set_tile_full_collision(tile_idx, has_collision);
+                            project.mark_dirty();
+                        }
                     }
-                }
 
-                ui.add_enabled_ui(has_collision, |ui| {
-                    // Shape selector
-                    let shape_name = collision_data.shape.name();
-                    egui::ComboBox::from_label("Shape")
-                        .selected_text(shape_name)
-                        .show_ui(ui, |ui| {
-                            let shapes = [
-                                ("Full", bevy_map_core::CollisionShape::Full),
-                                (
-                                    "Rectangle",
-                                    bevy_map_core::CollisionShape::Rectangle {
-                                        offset: [0.0, 0.0],
-                                        size: [1.0, 1.0],
-                                    },
-                                ),
-                                (
-                                    "Circle",
-                                    bevy_map_core::CollisionShape::Circle {
-                                        offset: [0.0, 0.0],
-                                        radius: 0.5,
-                                    },
-                                ),
-                            ];
-                            for (name, shape) in shapes {
-                                if ui.selectable_label(shape_name == name, name).clicked() {
-                                    if let Some(tileset) =
-                                        project.tilesets.iter_mut().find(|t| t.id == tileset_id)
-                                    {
-                                        let props = tileset.get_tile_properties_mut(tile_idx);
-                                        props.collision.shape = shape;
-                                        project.mark_dirty();
+                    ui.add_enabled_ui(has_collision, |ui| {
+                        // Shape selector
+                        let shape_name = collision_data.shape.name();
+                        egui::ComboBox::from_label("Shape")
+                            .selected_text(shape_name)
+                            .show_ui(ui, |ui| {
+                                let shapes = [
+                                    ("Full", bevy_map_core::CollisionShape::Full),
+                                    (
+                                        "Rectangle",
+                                        bevy_map_core::CollisionShape::Rectangle {
+                                            offset: [0.0, 0.0],
+                                            size: [1.0, 1.0],
+                                        },
+                                    ),
+                                    (
+                                        "Circle",
+                                        bevy_map_core::CollisionShape::Circle {
+                                            offset: [0.0, 0.0],
+                                            radius: 0.5,
+                                        },
+                                    ),
+                                ];
+                                for (name, shape) in shapes {
+                                    if ui.selectable_label(shape_name == name, name).clicked() {
+                                        if let Some(tileset) =
+                                            project.tilesets.iter_mut().find(|t| t.id == tileset_id)
+                                        {
+                                            let props = tileset.get_tile_properties_mut(tile_idx);
+                                            props.collision.shape = shape;
+                                            project.mark_dirty();
+                                        }
                                     }
                                 }
-                            }
-                        });
+                            });
 
-                    // One-way direction
-                    let one_way_name = collision_data.one_way.name();
-                    egui::ComboBox::from_label("One-way")
-                        .selected_text(one_way_name)
-                        .show_ui(ui, |ui| {
-                            let directions = [
-                                bevy_map_core::OneWayDirection::None,
-                                bevy_map_core::OneWayDirection::Top,
-                                bevy_map_core::OneWayDirection::Bottom,
-                                bevy_map_core::OneWayDirection::Left,
-                                bevy_map_core::OneWayDirection::Right,
-                            ];
-                            for dir in directions {
-                                if ui.selectable_label(collision_data.one_way == dir, dir.name()).clicked() {
-                                    if let Some(tileset) =
-                                        project.tilesets.iter_mut().find(|t| t.id == tileset_id)
+                        // One-way direction
+                        let one_way_name = collision_data.one_way.name();
+                        egui::ComboBox::from_label("One-way")
+                            .selected_text(one_way_name)
+                            .show_ui(ui, |ui| {
+                                let directions = [
+                                    bevy_map_core::OneWayDirection::None,
+                                    bevy_map_core::OneWayDirection::Top,
+                                    bevy_map_core::OneWayDirection::Bottom,
+                                    bevy_map_core::OneWayDirection::Left,
+                                    bevy_map_core::OneWayDirection::Right,
+                                ];
+                                for dir in directions {
+                                    if ui
+                                        .selectable_label(collision_data.one_way == dir, dir.name())
+                                        .clicked()
                                     {
-                                        let props = tileset.get_tile_properties_mut(tile_idx);
-                                        props.collision.one_way = dir;
-                                        project.mark_dirty();
+                                        if let Some(tileset) =
+                                            project.tilesets.iter_mut().find(|t| t.id == tileset_id)
+                                        {
+                                            let props = tileset.get_tile_properties_mut(tile_idx);
+                                            props.collision.one_way = dir;
+                                            project.mark_dirty();
+                                        }
                                     }
                                 }
-                            }
-                        });
+                            });
 
-                    // Collision layer
-                    let mut layer = collision_data.layer;
-                    ui.horizontal(|ui| {
-                        ui.label("Layer:");
-                        if ui
-                            .add(egui::DragValue::new(&mut layer).range(0..=31))
-                            .changed()
-                        {
-                            if let Some(tileset) =
-                                project.tilesets.iter_mut().find(|t| t.id == tileset_id)
-                            {
-                                let props = tileset.get_tile_properties_mut(tile_idx);
-                                props.collision.layer = layer;
-                                project.mark_dirty();
-                            }
-                        }
-                    });
-                });
-
-                ui.separator();
-
-                // Animation settings
-                ui.heading("Animation");
-
-                let has_anim = current_props.animation_frames.is_some();
-                let mut enable_anim = has_anim;
-
-                if ui.checkbox(&mut enable_anim, "Enable animation").changed() {
-                    if let Some(tileset) = project.tilesets.iter_mut().find(|t| t.id == tileset_id)
-                    {
-                        let props = tileset.get_tile_properties_mut(tile_idx);
-                        if enable_anim {
-                            props.animation_frames = Some(vec![tile_idx]);
-                            props.animation_speed = Some(10.0);
-                        } else {
-                            props.animation_frames = None;
-                            props.animation_speed = None;
-                        }
-                        project.mark_dirty();
-                    }
-                }
-
-                if enable_anim {
-                    // Animation speed
-                    let mut speed = current_props.animation_speed.unwrap_or(10.0);
-                    ui.horizontal(|ui| {
-                        ui.label("Speed (FPS):");
-                        if ui
-                            .add(egui::DragValue::new(&mut speed).range(0.1..=60.0))
-                            .changed()
-                        {
-                            if let Some(tileset) =
-                                project.tilesets.iter_mut().find(|t| t.id == tileset_id)
-                            {
-                                let props = tileset.get_tile_properties_mut(tile_idx);
-                                props.animation_speed = Some(speed);
-                                project.mark_dirty();
-                            }
-                        }
-                    });
-
-                    // Animation frames display
-                    ui.label("Frames:");
-                    let frames = current_props.animation_frames.clone().unwrap_or_default();
-                    ui.horizontal_wrapped(|ui| {
-                        for frame in &frames {
-                            ui.label(format!("{}", frame));
-                        }
-                    });
-                    ui.small("(Frame editing coming in future update)");
-                }
-
-                ui.separator();
-
-                // Custom properties
-                ui.heading("Custom Properties");
-                if current_props.custom.is_empty() {
-                    ui.label("No custom properties set");
-                } else {
-                    for (key, value) in &current_props.custom {
+                        // Collision layer
+                        let mut layer = collision_data.layer;
                         ui.horizontal(|ui| {
-                            ui.label(key);
-                            ui.label(":");
-                            ui.label(format!("{}", value));
+                            ui.label("Layer:");
+                            if ui
+                                .add(egui::DragValue::new(&mut layer).range(0..=31))
+                                .changed()
+                            {
+                                if let Some(tileset) =
+                                    project.tilesets.iter_mut().find(|t| t.id == tileset_id)
+                                {
+                                    let props = tileset.get_tile_properties_mut(tile_idx);
+                                    props.collision.layer = layer;
+                                    project.mark_dirty();
+                                }
+                            }
                         });
+                    });
+
+                    ui.separator();
+
+                    // Grid size settings (for multi-cell tiles like trees)
+                    ui.heading("Grid Size");
+                    ui.small("For multi-cell tiles that span multiple grid cells");
+
+                    let mut grid_width = current_props.grid_width;
+                    let mut grid_height = current_props.grid_height;
+
+                    ui.horizontal(|ui| {
+                        ui.label("Width:");
+                        if ui
+                            .add(egui::DragValue::new(&mut grid_width).range(1..=8))
+                            .changed()
+                        {
+                            if let Some(tileset) =
+                                project.tilesets.iter_mut().find(|t| t.id == tileset_id)
+                            {
+                                tileset.set_tile_grid_size(tile_idx, grid_width, grid_height);
+                                project.mark_dirty();
+                            }
+                        }
+                    });
+
+                    ui.horizontal(|ui| {
+                        ui.label("Height:");
+                        if ui
+                            .add(egui::DragValue::new(&mut grid_height).range(1..=8))
+                            .changed()
+                        {
+                            if let Some(tileset) =
+                                project.tilesets.iter_mut().find(|t| t.id == tileset_id)
+                            {
+                                tileset.set_tile_grid_size(tile_idx, grid_width, grid_height);
+                                project.mark_dirty();
+                            }
+                        }
+                    });
+
+                    if grid_width > 1 || grid_height > 1 {
+                        ui.label(format!(
+                            "This tile spans {}x{} grid cells",
+                            grid_width, grid_height
+                        ));
                     }
-                }
-                ui.small("(Custom property editing coming in future update)");
-            } else {
-                ui.label("Click a tile on the left to edit its properties");
-            }
-        });
+
+                    ui.separator();
+
+                    // Animation settings
+                    ui.heading("Animation");
+
+                    let has_anim = current_props.animation_frames.is_some();
+                    let mut enable_anim = has_anim;
+
+                    if ui.checkbox(&mut enable_anim, "Enable animation").changed() {
+                        if let Some(tileset) =
+                            project.tilesets.iter_mut().find(|t| t.id == tileset_id)
+                        {
+                            let props = tileset.get_tile_properties_mut(tile_idx);
+                            if enable_anim {
+                                props.animation_frames = Some(vec![tile_idx]);
+                                props.animation_speed = Some(10.0);
+                            } else {
+                                props.animation_frames = None;
+                                props.animation_speed = None;
+                            }
+                            project.mark_dirty();
+                        }
+                    }
+
+                    if enable_anim {
+                        // Animation speed
+                        let mut speed = current_props.animation_speed.unwrap_or(10.0);
+                        ui.horizontal(|ui| {
+                            ui.label("Speed (FPS):");
+                            if ui
+                                .add(egui::DragValue::new(&mut speed).range(0.1..=60.0))
+                                .changed()
+                            {
+                                if let Some(tileset) =
+                                    project.tilesets.iter_mut().find(|t| t.id == tileset_id)
+                                {
+                                    let props = tileset.get_tile_properties_mut(tile_idx);
+                                    props.animation_speed = Some(speed);
+                                    project.mark_dirty();
+                                }
+                            }
+                        });
+
+                        // Animation frames display
+                        ui.label("Frames:");
+                        let frames = current_props.animation_frames.clone().unwrap_or_default();
+                        ui.horizontal_wrapped(|ui| {
+                            for frame in &frames {
+                                ui.label(format!("{}", frame));
+                            }
+                        });
+                        ui.small("(Frame editing coming in future update)");
+                    }
+
+                    ui.separator();
+
+                    // Custom properties
+                    ui.heading("Custom Properties");
+                    if current_props.custom.is_empty() {
+                        ui.label("No custom properties set");
+                    } else {
+                        for (key, value) in &current_props.custom {
+                            ui.horizontal(|ui| {
+                                ui.label(key);
+                                ui.label(":");
+                                ui.label(format!("{}", value));
+                            });
+                        }
+                    }
+                    ui.small("(Custom property editing coming in future update)");
+                });
+        } else {
+            ui.label("Click a tile on the left to edit its properties");
+        }
     });
 }
 
-/// Render tile selector grid for the properties tab
+/// Render tile selector grid for the properties tab with shift+drag tile merging
 fn render_tile_selector_for_properties(
     ui: &mut egui::Ui,
     editor_state: &mut EditorState,
+    project: &mut Project,
+    tileset_id: uuid::Uuid,
     _tile_size: u32,
     images: &[bevy_map_core::TilesetImage],
     cache: Option<&TilesetTextureCache>,
 ) {
     let display_size = egui::vec2(32.0, 32.0);
+    let spacing = 1.0;
     let mut virtual_offset = 0u32;
 
-    for image in images {
+    // Check input state for shift+drag merging
+    let shift_held = ui.input(|i| i.modifiers.shift);
+    let pointer_pos = ui.input(|i| i.pointer.hover_pos());
+    let primary_pressed = ui.input(|i| i.pointer.primary_pressed());
+    let primary_released = ui.input(|i| i.pointer.primary_released());
+    let primary_down = ui.input(|i| i.pointer.primary_down());
+
+    // Show hint for shift+drag
+    if shift_held {
+        ui.small("Shift+Drag to merge tiles");
+    }
+
+    for (image_idx, image) in images.iter().enumerate() {
         let texture_id = cache
             .and_then(|c| c.loaded.get(&image.id))
             .map(|(_, tex_id, _, _)| *tex_id);
@@ -1421,9 +1496,12 @@ fn render_tile_selector_for_properties(
             let uv_tile_width = 1.0 / image.columns.max(1) as f32;
             let uv_tile_height = 1.0 / image.rows.max(1) as f32;
 
+            // Store tile rects for shift+drag interaction
+            let mut tile_rects: Vec<(u32, u32, egui::Rect, u32)> = Vec::new();
+
             for row in 0..image.rows {
                 ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing = egui::vec2(1.0, 1.0);
+                    ui.spacing_mut().item_spacing = egui::vec2(spacing, spacing);
 
                     for col in 0..image.columns {
                         let local_index = row * image.columns + col;
@@ -1459,7 +1537,11 @@ fn render_tile_selector_for_properties(
                             )
                         };
 
-                        if response.clicked() {
+                        // Track rect for shift+drag interaction
+                        tile_rects.push((col, row, response.rect, virtual_index));
+
+                        // Normal click selection (only if not shift-dragging)
+                        if response.clicked() && !shift_held {
                             editor_state
                                 .tileset_editor_state
                                 .selected_tile_for_properties = Some(virtual_index);
@@ -1469,9 +1551,174 @@ fn render_tile_selector_for_properties(
                     }
                 });
             }
+
+            // Handle shift+drag for tile merging
+            if shift_held {
+                if let Some(pos) = pointer_pos {
+                    // Find which tile the pointer is over
+                    for &(col, row, rect, _idx) in &tile_rects {
+                        if rect.contains(pos) {
+                            if primary_pressed {
+                                // Start drag
+                                editor_state.tileset_editor_state.merge_drag_start =
+                                    Some((col, row, image_idx));
+                                editor_state.tileset_editor_state.merge_drag_current =
+                                    Some((col, row));
+                            } else if primary_down
+                                && editor_state.tileset_editor_state.merge_drag_start.is_some()
+                            {
+                                // Update current position during drag
+                                if let Some((_, _, start_img_idx)) =
+                                    editor_state.tileset_editor_state.merge_drag_start
+                                {
+                                    if start_img_idx == image_idx {
+                                        editor_state.tileset_editor_state.merge_drag_current =
+                                            Some((col, row));
+                                    }
+                                }
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Draw selection overlay if dragging within this image
+            if let (Some((start_col, start_row, start_img_idx)), Some((curr_col, curr_row))) = (
+                editor_state.tileset_editor_state.merge_drag_start,
+                editor_state.tileset_editor_state.merge_drag_current,
+            ) {
+                if start_img_idx == image_idx {
+                    // Calculate selection rectangle
+                    let min_col = start_col.min(curr_col);
+                    let max_col = start_col.max(curr_col);
+                    let min_row = start_row.min(curr_row);
+                    let max_row = start_row.max(curr_row);
+
+                    // Find the combined rect from tile rects
+                    let mut combined_rect: Option<egui::Rect> = None;
+                    for &(col, row, rect, _) in &tile_rects {
+                        if col >= min_col && col <= max_col && row >= min_row && row <= max_row {
+                            combined_rect = Some(match combined_rect {
+                                None => rect,
+                                Some(r) => r.union(rect),
+                            });
+                        }
+                    }
+
+                    // Draw yellow selection border
+                    if let Some(rect) = combined_rect {
+                        let painter = ui.painter();
+                        painter.rect_stroke(
+                            rect.expand(2.0),
+                            2.0,
+                            egui::Stroke::new(3.0, Color32::YELLOW),
+                            egui::StrokeKind::Outside,
+                        );
+
+                        // Show size hint
+                        let width = max_col - min_col + 1;
+                        let height = max_row - min_row + 1;
+                        let hint = format!("{}x{}", width, height);
+                        painter.text(
+                            rect.right_bottom() + egui::vec2(4.0, -4.0),
+                            egui::Align2::LEFT_BOTTOM,
+                            hint,
+                            egui::FontId::default(),
+                            Color32::YELLOW,
+                        );
+                    }
+                }
+            }
+
+            // Draw borders around existing merged tile regions
+            if let Some(tileset) = project.tilesets.iter().find(|t| t.id == tileset_id) {
+                for row in 0..image.rows {
+                    for col in 0..image.columns {
+                        let tile_idx = virtual_offset + row * image.columns + col;
+                        if let Some(props) = tileset.get_tile_properties(tile_idx) {
+                            if props.grid_width > 1 || props.grid_height > 1 {
+                                // This is a merged tile base - draw border
+                                let end_col = col + props.grid_width - 1;
+                                let end_row = row + props.grid_height - 1;
+
+                                // Find combined rect
+                                let mut combined_rect: Option<egui::Rect> = None;
+                                for &(tc, tr, rect, _) in &tile_rects {
+                                    if tc >= col
+                                        && tc <= end_col
+                                        && tr >= row
+                                        && tr <= end_row
+                                    {
+                                        combined_rect = Some(match combined_rect {
+                                            None => rect,
+                                            Some(r) => r.union(rect),
+                                        });
+                                    }
+                                }
+
+                                if let Some(rect) = combined_rect {
+                                    let painter = ui.painter();
+                                    // Use cyan for existing merged tiles (different from yellow selection)
+                                    painter.rect_stroke(
+                                        rect.expand(1.0),
+                                        1.0,
+                                        egui::Stroke::new(2.0, Color32::LIGHT_BLUE),
+                                        egui::StrokeKind::Outside,
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Finalize merge on release
+            if primary_released {
+                if let (Some((start_col, start_row, start_img_idx)), Some((curr_col, curr_row))) = (
+                    editor_state.tileset_editor_state.merge_drag_start,
+                    editor_state.tileset_editor_state.merge_drag_current,
+                ) {
+                    if start_img_idx == image_idx {
+                        let min_col = start_col.min(curr_col);
+                        let max_col = start_col.max(curr_col);
+                        let min_row = start_row.min(curr_row);
+                        let max_row = start_row.max(curr_row);
+
+                        let width = max_col - min_col + 1;
+                        let height = max_row - min_row + 1;
+
+                        // Calculate base tile index (top-left of selection)
+                        let base_tile_idx = virtual_offset + min_row * image.columns + min_col;
+
+                        // Set grid size on the base tile
+                        if let Some(tileset) =
+                            project.tilesets.iter_mut().find(|t| t.id == tileset_id)
+                        {
+                            tileset.set_tile_grid_size(base_tile_idx, width, height);
+                            project.mark_dirty();
+
+                            // Also select this tile for editing
+                            editor_state
+                                .tileset_editor_state
+                                .selected_tile_for_properties = Some(base_tile_idx);
+                        }
+                    }
+                }
+
+                // Clear drag state
+                editor_state.tileset_editor_state.merge_drag_start = None;
+                editor_state.tileset_editor_state.merge_drag_current = None;
+            }
         });
 
         virtual_offset += image.tile_count();
+    }
+
+    // Clear drag state if shift released
+    if !shift_held && !primary_down {
+        editor_state.tileset_editor_state.merge_drag_start = None;
+        editor_state.tileset_editor_state.merge_drag_current = None;
     }
 }
 
@@ -1512,8 +1759,6 @@ fn render_collision_tab(
     egui::SidePanel::left("collision_tile_list")
         .resizable(true)
         .default_width(200.0)
-        .min_width(150.0)
-        .max_width(400.0)
         .show_inside(ui, |ui| {
             ui.heading("Tiles");
 
@@ -1549,8 +1794,6 @@ fn render_collision_tab(
     egui::SidePanel::right("collision_tools_panel")
         .resizable(true)
         .default_width(180.0)
-        .min_width(140.0)
-        .max_width(300.0)
         .show_inside(ui, |ui| {
             ui.heading("Tools");
 

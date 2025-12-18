@@ -13,7 +13,7 @@
 //! Run with: cargo run --example tileset_demo -p bevy_map_editor_examples
 
 use bevy::prelude::*;
-use bevy_map_core::{LayerData, MapProject};
+use bevy_map_core::{CollisionShape, LayerData, MapProject, OneWayDirection};
 use bevy_map_runtime::{MapHandle, MapRuntimePlugin};
 
 fn main() {
@@ -184,7 +184,7 @@ fn update_display(
 
     // Show tile info at cursor
     for layer in &project.level.layers {
-        if let LayerData::Tiles { tileset_id, tiles } = &layer.data {
+        if let LayerData::Tiles { tileset_id, tiles, .. } = &layer.data {
             let idx =
                 (project.level.height - 1 - y) as usize * project.level.width as usize + x as usize;
             if let Some(tile_idx) = tiles.get(idx).and_then(|t| *t) {
@@ -192,11 +192,11 @@ fn update_display(
 
                 if let Some(tileset) = project.tilesets.get(tileset_id) {
                     if let Some(props) = tileset.tile_properties.get(&tile_idx) {
-                        if props.collision {
+                        if props.collision.shape != CollisionShape::None {
                             display.push_str("  [COLLISION]\n");
                         }
-                        if props.one_way {
-                            display.push_str("  [ONE-WAY]\n");
+                        if props.collision.one_way != OneWayDirection::None {
+                            display.push_str(&format!("  [ONE-WAY: {:?}]\n", props.collision.one_way));
                         }
                         for (key, value) in &props.custom {
                             display.push_str(&format!("  {}: {}\n", key, value));

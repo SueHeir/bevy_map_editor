@@ -190,6 +190,28 @@ impl AssetsBasePath {
     }
 }
 
+/// Convert a path to a format Bevy's AssetServer can load.
+/// - Absolute paths are converted to forward slashes
+/// - Relative paths are returned as-is with forward slashes
+pub fn to_asset_path(path: &str) -> String {
+    // Normalize backslashes to forward slashes
+    let normalized = path.replace('\\', "/");
+
+    // Check if it's an absolute Windows path (e.g., C:/...)
+    if normalized.len() >= 2 && normalized.chars().nth(1) == Some(':') {
+        // Already in correct format for absolute path
+        normalized
+    } else {
+        normalized
+    }
+}
+
+/// Check if a path is absolute (works for both Windows and Unix paths)
+pub fn is_absolute_path(path: &str) -> bool {
+    let path = std::path::Path::new(path);
+    path.is_absolute()
+}
+
 /// Callback type for file copy confirmation
 #[derive(Debug, Clone, Default, PartialEq)]
 pub enum CopyFileCallback {
@@ -232,15 +254,67 @@ pub enum RenamingItem {
     Dialogue(String),
 }
 
-/// Main editor plugin with configurable assets path
+/// Configuration for initial editor state
+///
+/// Use this to customize the editor's initial settings when embedding it in your application.
+#[derive(Clone, Debug)]
+pub struct EditorStateConfig {
+    /// Whether to show the grid on startup. Default: true
+    pub show_grid: bool,
+    /// Whether to show collision overlays on startup. Default: false
+    pub show_collisions: bool,
+    /// Whether to snap to grid on startup. Default: true
+    pub snap_to_grid: bool,
+    /// Initial zoom level (0.25 to 4.0). Default: 1.0
+    pub initial_zoom: f32,
+    /// Initial tool selection. Default: Select
+    pub initial_tool: EditorTool,
+}
+
+impl Default for EditorStateConfig {
+    fn default() -> Self {
+        Self {
+            show_grid: true,
+            show_collisions: false,
+            snap_to_grid: true,
+            initial_zoom: 1.0,
+            initial_tool: EditorTool::Select,
+        }
+    }
+}
+
+/// Main editor plugin with configurable assets path and initial state
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use bevy::prelude::*;
+/// use bevy_map_editor::{EditorPlugin, EditorTool};
+///
+/// App::new()
+///     .add_plugins(DefaultPlugins)
+///     .add_plugins(
+///         EditorPlugin::new()
+///             .with_assets_path("my_assets")
+///             .with_initial_grid(true)
+///             .with_initial_zoom(2.0)
+///             .with_initial_tool(EditorTool::Paint)
+///     )
+///     .run();
+/// ```
 pub struct EditorPlugin {
     /// Custom assets path. If None, auto-detects based on environment.
     pub assets_path: Option<PathBuf>,
+    /// Initial editor state configuration.
+    pub initial_state: EditorStateConfig,
 }
 
 impl Default for EditorPlugin {
     fn default() -> Self {
-        Self { assets_path: None }
+        Self {
+            assets_path: None,
+            initial_state: EditorStateConfig::default(),
+        }
     }
 }
 
@@ -257,35 +331,46 @@ impl EditorPlugin {
         self
     }
 
-    /// Auto-detect the assets path based on the environment.
-    /// Checks common locations in order:
-    /// 1. Custom path if set
-    /// 2. BEVY_ASSET_ROOT environment variable
-    /// 3. Cargo manifest directory + assets (for examples)
-    /// 4. Current directory + assets (fallback)
+    /// Set whether to show the grid on startup (default: true)
+    pub fn with_initial_grid(mut self, show: bool) -> Self {
+        self.initial_state.show_grid = show;
+        self
+    }
+
+    /// Set whether to show collision overlays on startup (default: false)
+    pub fn with_show_collisions(mut self, show: bool) -> Self {
+        self.initial_state.show_collisions = show;
+        self
+    }
+
+    /// Set whether to snap to grid on startup (default: true)
+    pub fn with_snap_to_grid(mut self, snap: bool) -> Self {
+        self.initial_state.snap_to_grid = snap;
+        self
+    }
+
+    /// Set the initial zoom level (0.25 to 4.0, default: 1.0)
+    pub fn with_initial_zoom(mut self, zoom: f32) -> Self {
+        self.initial_state.initial_zoom = zoom.clamp(0.25, 4.0);
+        self
+    }
+
+    /// Set the initial tool selection (default: Select)
+    pub fn with_initial_tool(mut self, tool: EditorTool) -> Self {
+        self.initial_state.initial_tool = tool;
+        self
+    }
+
+    /// Auto-detect the assets path.
+    /// Uses custom path if set via `with_assets_path()`, otherwise defaults to
+    /// current working directory + "assets".
     fn detect_assets_path(&self) -> PathBuf {
         // Use custom path if provided
         if let Some(path) = &self.assets_path {
             return path.clone();
         }
 
-        // Check BEVY_ASSET_ROOT environment variable
-        if let Ok(asset_root) = std::env::var("BEVY_ASSET_ROOT") {
-            let path = PathBuf::from(asset_root);
-            if path.exists() {
-                return path;
-            }
-        }
-
-        // Check CARGO_MANIFEST_DIR (for running from cargo)
-        if let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") {
-            let assets_path = PathBuf::from(&manifest_dir).join("assets");
-            if assets_path.exists() {
-                return assets_path;
-            }
-        }
-
-        // Fallback to current directory + assets
+        // Default to current directory + assets
         std::env::current_dir()
             .map(|p| p.join("assets"))
             .unwrap_or_else(|_| PathBuf::from("assets"))
@@ -299,11 +384,19 @@ impl Plugin for EditorPlugin {
         // Log the assets path for debugging
         bevy::log::info!("EditorPlugin: Using assets path: {:?}", assets_path);
 
+        // Create EditorState with custom initial configuration
+        let mut editor_state = EditorState::default();
+        editor_state.show_grid = self.initial_state.show_grid;
+        editor_state.show_collisions = self.initial_state.show_collisions;
+        editor_state.snap_to_grid = self.initial_state.snap_to_grid;
+        editor_state.zoom = self.initial_state.initial_zoom;
+        editor_state.current_tool = self.initial_state.initial_tool.clone();
+
         app.add_plugins(EguiPlugin::default())
             .add_plugins(EditorUiPlugin)
             .add_plugins(MapRenderPlugin)
             .add_plugins(EditorToolsPlugin)
-            .init_resource::<EditorState>()
+            .insert_resource(editor_state)
             .init_resource::<CommandHistory>()
             .init_resource::<TileClipboard>()
             .insert_resource(Project::default())

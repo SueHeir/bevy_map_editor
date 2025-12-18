@@ -6,7 +6,7 @@
 
 use bevy::prelude::*;
 use bevy_ecs_tilemap::prelude::*;
-use bevy_map_core::LayerData;
+use bevy_map_core::{LayerData, OCCUPIED_CELL};
 use std::collections::HashMap;
 use uuid::Uuid;
 
@@ -57,6 +57,9 @@ pub struct RenderState {
     pub last_grid_visible: bool,
     /// Last rendered level dimensions for grid
     pub last_grid_dimensions: Option<(u32, u32, u32)>, // (width, height, tile_size)
+    /// Multi-cell tile sprites: (level_id, layer_index, x, y) -> sprite entity
+    /// These are rendered as separate Sprites instead of TileBundle to span multiple cells
+    pub multi_cell_sprites: HashMap<(Uuid, usize, u32, u32), Entity>,
 }
 
 impl RenderState {
@@ -94,6 +97,15 @@ pub struct SelectionPreview;
 #[derive(Component)]
 pub struct CollisionOverlay;
 
+/// Marker component for multi-cell tile sprites
+#[derive(Component)]
+pub struct MultiCellTileSprite {
+    pub level_id: Uuid,
+    pub layer_index: usize,
+    pub x: u32,
+    pub y: u32,
+}
+
 /// Cache for collision overlay entities (for efficient updates)
 #[derive(Resource, Default)]
 pub struct CollisionOverlayCache {
@@ -129,8 +141,13 @@ fn sync_level_rendering(
         for entity in tilemap_query.iter() {
             commands.entity(entity).despawn();
         }
+        // Despawn multi-cell tile sprites
+        for entity in render_state.multi_cell_sprites.values() {
+            commands.entity(*entity).despawn();
+        }
         render_state.tilemap_entities.clear();
         render_state.tile_storages.clear();
+        render_state.multi_cell_sprites.clear();
         render_state.layer_visibility.clear();
         render_state.rendered_level = current_level_id;
         render_state.needs_rebuild = true;
@@ -157,8 +174,13 @@ fn sync_level_rendering(
         for entity in tilemap_query.iter() {
             commands.entity(entity).despawn();
         }
+        // Despawn multi-cell tile sprites
+        for entity in render_state.multi_cell_sprites.values() {
+            commands.entity(*entity).despawn();
+        }
         render_state.tilemap_entities.clear();
         render_state.tile_storages.clear();
+        render_state.multi_cell_sprites.clear();
 
         spawn_level_tilemaps(
             &mut commands,
@@ -177,7 +199,8 @@ fn sync_layer_visibility(
     editor_state: Res<EditorState>,
     project: Res<Project>,
     mut render_state: ResMut<RenderState>,
-    mut tilemap_query: Query<(&EditorTilemap, &mut Visibility)>,
+    mut tilemap_query: Query<(&EditorTilemap, &mut Visibility), Without<MultiCellTileSprite>>,
+    mut multi_cell_query: Query<(&MultiCellTileSprite, &mut Visibility), Without<EditorTilemap>>,
 ) {
     let Some(level_id) = editor_state.selected_level else {
         return;
@@ -195,15 +218,26 @@ fn sync_layer_visibility(
         if old_vis != Some(layer.visible) {
             render_state.layer_visibility.insert(key, layer.visible);
 
+            let new_visibility = if layer.visible {
+                Visibility::Inherited
+            } else {
+                Visibility::Hidden
+            };
+
             // Update visibility of all tilemaps for this layer
             for (editor_tilemap, mut visibility) in tilemap_query.iter_mut() {
                 if editor_tilemap.level_id == level_id && editor_tilemap.layer_index == layer_index
                 {
-                    *visibility = if layer.visible {
-                        Visibility::Inherited
-                    } else {
-                        Visibility::Hidden
-                    };
+                    *visibility = new_visibility;
+                }
+            }
+
+            // Update visibility of multi-cell tile sprites for this layer
+            for (multi_cell_sprite, mut visibility) in multi_cell_query.iter_mut() {
+                if multi_cell_sprite.level_id == level_id
+                    && multi_cell_sprite.layer_index == layer_index
+                {
+                    *visibility = new_visibility;
                 }
             }
         }
@@ -238,37 +272,62 @@ fn spawn_level_tilemaps(
 
         // Group tiles by image (for multi-image tilesets)
         // bevy_ecs_tilemap uses a single texture per tilemap, so we need separate tilemaps per image
+        // Also track which tiles are multi-cell (they'll be rendered as Sprites instead)
         let mut tiles_by_image: HashMap<usize, Vec<(u32, u32, u32)>> = HashMap::new();
+        let mut multi_cell_tiles: Vec<(u32, u32, u32, u32, u32, usize)> = Vec::new(); // (x, y, virtual_idx, grid_w, grid_h, image_index)
 
         for y in 0..level.height {
             for x in 0..level.width {
                 let index = (y * level.width + x) as usize;
                 if let Some(Some(virtual_tile_index)) = tiles.get(index) {
-                    // Convert virtual tile index to (image_index, local_index)
-                    if let Some((image_index, local_tile_index)) =
-                        tileset.virtual_to_local(*virtual_tile_index)
-                    {
-                        tiles_by_image.entry(image_index).or_default().push((
-                            x,
-                            y,
-                            local_tile_index,
-                        ));
+                    // Skip OCCUPIED_CELL sentinel values (used for multi-cell tiles)
+                    if *virtual_tile_index == OCCUPIED_CELL {
+                        continue;
+                    }
+
+                    // Check if this is a multi-cell tile
+                    let (grid_width, grid_height) = tileset.get_tile_grid_size(*virtual_tile_index);
+
+                    if grid_width > 1 || grid_height > 1 {
+                        // Multi-cell tile - will be rendered as Sprite
+                        if let Some((image_index, _)) = tileset.virtual_to_local(*virtual_tile_index)
+                        {
+                            multi_cell_tiles.push((
+                                x,
+                                y,
+                                *virtual_tile_index,
+                                grid_width,
+                                grid_height,
+                                image_index,
+                            ));
+                        }
+                    } else {
+                        // Regular 1x1 tile - use TileBundle
+                        if let Some((image_index, local_tile_index)) =
+                            tileset.virtual_to_local(*virtual_tile_index)
+                        {
+                            tiles_by_image.entry(image_index).or_default().push((
+                                x,
+                                y,
+                                local_tile_index,
+                            ));
+                        }
                     }
                 }
             }
         }
 
-        // Spawn a tilemap for each image used in this layer
+        // Spawn a tilemap for each image used in this layer (for regular 1x1 tiles)
         for (image_index, image_tiles) in tiles_by_image {
             // Get texture handle for this image
             let texture_handle = if let Some(image) = tileset.images.get(image_index) {
                 if let Some((handle, _, _, _)) = tileset_cache.loaded.get(&image.id) {
                     handle.clone()
                 } else {
-                    asset_server.load(image.path.clone())
+                    asset_server.load(crate::to_asset_path(&image.path))
                 }
             } else if let Some(path) = tileset.primary_path() {
-                asset_server.load(path.to_string())
+                asset_server.load(crate::to_asset_path(path))
             } else {
                 continue;
             };
@@ -337,6 +396,69 @@ fn spawn_level_tilemaps(
             render_state.tile_storages.insert(key, tile_storage);
         }
 
+        // Spawn multi-cell tiles as Sprites
+        for (x, y, virtual_tile_index, grid_width, grid_height, image_index) in multi_cell_tiles {
+            // Get texture handle and image info for this tile
+            let Some(image) = tileset.images.get(image_index) else {
+                continue;
+            };
+
+            let texture_handle =
+                if let Some((handle, _, _, _)) = tileset_cache.loaded.get(&image.id) {
+                    handle.clone()
+                } else {
+                    // Image not loaded yet, skip for now (will be rendered on rebuild)
+                    continue;
+                };
+
+            // Calculate local tile position in the tileset image
+            let (_, local_tile_index) = tileset.virtual_to_local(virtual_tile_index).unwrap();
+            let tile_col = local_tile_index % image.columns;
+            let tile_row = local_tile_index / image.columns;
+
+            // Source rect in texture coordinates (pixels)
+            // Note: In Bevy textures, Y=0 is at top, but we need to flip for correct sampling
+            let src_x = (tile_col * tile_size) as f32;
+            let src_y = (tile_row * tile_size) as f32;
+            let src_width = (grid_width * tile_size) as f32;
+            let src_height = (grid_height * tile_size) as f32;
+
+            // Create a rect for the source region
+            let rect = bevy::math::Rect::new(src_x, src_y, src_x + src_width, src_y + src_height);
+
+            // World position: sprite center should be at the center of all spanned cells
+            // With BottomLeft anchor, tile (x,y) starts at world (x*tile_size, y*tile_size)
+            let world_x = x as f32 * tile_size_f32 + src_width / 2.0;
+            let world_y = y as f32 * tile_size_f32 + src_height / 2.0;
+
+            // Z-offset slightly above regular tiles in same layer
+            let layer_z = layer_index as f32 * 0.1 + image_index as f32 * 0.01 + 0.001;
+
+            let sprite_entity = commands
+                .spawn((
+                    Sprite {
+                        image: texture_handle,
+                        rect: Some(rect),
+                        custom_size: Some(Vec2::new(src_width, src_height)),
+                        ..default()
+                    },
+                    Transform::from_xyz(world_x, world_y, layer_z),
+                    Visibility::Inherited,
+                    MultiCellTileSprite {
+                        level_id: level.id,
+                        layer_index,
+                        x,
+                        y,
+                    },
+                ))
+                .id();
+
+            // Store reference for updates
+            render_state
+                .multi_cell_sprites
+                .insert((level.id, layer_index, x, y), sprite_entity);
+        }
+
         // Store layer visibility
         render_state
             .layer_visibility
@@ -352,6 +474,7 @@ pub fn update_tile(
     commands: &mut Commands,
     render_state: &mut RenderState,
     project: &Project,
+    tileset_cache: &TilesetTextureCache,
     level_id: Uuid,
     layer_index: usize,
     x: u32,
@@ -375,43 +498,120 @@ pub fn update_tile(
         return;
     };
 
+    let tile_size = tileset.tile_size;
+    let tile_size_f32 = tile_size as f32;
     let tile_pos = TilePos { x, y };
 
-    if let Some(tile_idx) = new_tile_index {
-        // Paint: add or replace tile
-        if let Some((image_index, local_idx)) = tileset.virtual_to_local(tile_idx) {
-            let key = (level_id, layer_index, image_index);
+    // First, remove any existing multi-cell sprite at this position
+    let multi_cell_key = (level_id, layer_index, x, y);
+    if let Some(entity) = render_state.multi_cell_sprites.remove(&multi_cell_key) {
+        commands.entity(entity).despawn();
+    }
 
-            // First, remove the tile from any other image's storage at this position
-            // (in case we're changing which image the tile uses)
-            for ((lid, li, img_idx), storage) in render_state.tile_storages.iter_mut() {
-                if *lid == level_id && *li == layer_index && *img_idx != image_index {
-                    if let Some(old_entity) = storage.get(&tile_pos) {
-                        commands.entity(old_entity).despawn();
-                        storage.remove(&tile_pos);
+    // Skip rendering OCCUPIED_CELL sentinel values (used for multi-cell tiles)
+    // Treat them as empty cells
+    let effective_tile_index = new_tile_index.filter(|&idx| idx != OCCUPIED_CELL);
+
+    if let Some(tile_idx) = effective_tile_index {
+        // Check if this is a multi-cell tile
+        let (grid_width, grid_height) = tileset.get_tile_grid_size(tile_idx);
+
+        if grid_width > 1 || grid_height > 1 {
+            // Multi-cell tile - render as Sprite
+            if let Some((image_index, local_idx)) = tileset.virtual_to_local(tile_idx) {
+                // Remove from regular tilemap storage if it was there
+                for ((lid, li, _), storage) in render_state.tile_storages.iter_mut() {
+                    if *lid == level_id && *li == layer_index {
+                        if let Some(entity) = storage.get(&tile_pos) {
+                            commands.entity(entity).despawn();
+                            storage.remove(&tile_pos);
+                        }
+                    }
+                }
+
+                // Get texture handle
+                if let Some(image) = tileset.images.get(image_index) {
+                    if let Some((texture_handle, _, _, _)) = tileset_cache.loaded.get(&image.id) {
+                        // Calculate tile position in tileset image
+                        let tile_col = local_idx % image.columns;
+                        let tile_row = local_idx / image.columns;
+
+                        // Source rect
+                        let src_x = (tile_col * tile_size) as f32;
+                        let src_y = (tile_row * tile_size) as f32;
+                        let src_width = (grid_width * tile_size) as f32;
+                        let src_height = (grid_height * tile_size) as f32;
+
+                        let rect =
+                            bevy::math::Rect::new(src_x, src_y, src_x + src_width, src_y + src_height);
+
+                        // World position
+                        let world_x = x as f32 * tile_size_f32 + src_width / 2.0;
+                        let world_y = y as f32 * tile_size_f32 + src_height / 2.0;
+                        let layer_z =
+                            layer_index as f32 * 0.1 + image_index as f32 * 0.01 + 0.001;
+
+                        let sprite_entity = commands
+                            .spawn((
+                                Sprite {
+                                    image: texture_handle.clone(),
+                                    rect: Some(rect),
+                                    custom_size: Some(Vec2::new(src_width, src_height)),
+                                    ..default()
+                                },
+                                Transform::from_xyz(world_x, world_y, layer_z),
+                                Visibility::Inherited,
+                                MultiCellTileSprite {
+                                    level_id,
+                                    layer_index,
+                                    x,
+                                    y,
+                                },
+                            ))
+                            .id();
+
+                        render_state
+                            .multi_cell_sprites
+                            .insert((level_id, layer_index, x, y), sprite_entity);
                     }
                 }
             }
+        } else {
+            // Regular 1x1 tile - use TileBundle
+            if let Some((image_index, local_idx)) = tileset.virtual_to_local(tile_idx) {
+                let key = (level_id, layer_index, image_index);
 
-            // Now update the correct tilemap
-            if let Some(storage) = render_state.tile_storages.get_mut(&key) {
-                let tilemap_entity = render_state.tilemap_entities[&key];
-
-                // Remove old tile if exists
-                if let Some(old_entity) = storage.get(&tile_pos) {
-                    commands.entity(old_entity).despawn();
+                // First, remove the tile from any other image's storage at this position
+                // (in case we're changing which image the tile uses)
+                for ((lid, li, img_idx), storage) in render_state.tile_storages.iter_mut() {
+                    if *lid == level_id && *li == layer_index && *img_idx != image_index {
+                        if let Some(old_entity) = storage.get(&tile_pos) {
+                            commands.entity(old_entity).despawn();
+                            storage.remove(&tile_pos);
+                        }
+                    }
                 }
 
-                // Spawn new tile
-                let new_tile = commands
-                    .spawn(TileBundle {
-                        position: tile_pos,
-                        tilemap_id: TilemapId(tilemap_entity),
-                        texture_index: TileTextureIndex(local_idx),
-                        ..default()
-                    })
-                    .id();
-                storage.set(&tile_pos, new_tile);
+                // Now update the correct tilemap
+                if let Some(storage) = render_state.tile_storages.get_mut(&key) {
+                    let tilemap_entity = render_state.tilemap_entities[&key];
+
+                    // Remove old tile if exists
+                    if let Some(old_entity) = storage.get(&tile_pos) {
+                        commands.entity(old_entity).despawn();
+                    }
+
+                    // Spawn new tile
+                    let new_tile = commands
+                        .spawn(TileBundle {
+                            position: tile_pos,
+                            tilemap_id: TilemapId(tilemap_entity),
+                            texture_index: TileTextureIndex(local_idx),
+                            ..default()
+                        })
+                        .id();
+                    storage.set(&tile_pos, new_tile);
+                }
             }
         }
     } else {

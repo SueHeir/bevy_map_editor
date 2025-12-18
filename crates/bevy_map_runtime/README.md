@@ -10,6 +10,7 @@ Part of [bevy_map_editor](https://github.com/jbuehler23/bevy_map_editor).
 - Asset-based map loading with hot reload support
 - Custom entity spawning with `#[derive(MapEntity)]`
 - Autoloading for animations and dialogues
+- **Collision integration** with Avian2D physics (optional `physics` feature)
 - Runtime tile modification
 
 ## Quick Start
@@ -107,6 +108,38 @@ pub struct Player {
     pub sprite: Option<Handle<Image>>,
 }
 ```
+
+## Collision Integration (Avian2D)
+
+Enable the `physics` feature to automatically spawn colliders from tile collision data:
+
+```toml
+bevy_map_runtime = { version = "0.1", features = ["physics"] }
+```
+
+```rust
+use bevy::prelude::*;
+use bevy_map_runtime::{MapRuntimePlugin, MapCollisionPlugin, MapHandle};
+use avian2d::prelude::*;
+
+fn main() {
+    App::new()
+        .add_plugins(DefaultPlugins)
+        .add_plugins(MapRuntimePlugin)
+        .add_plugins(MapCollisionPlugin)  // Auto-spawns Avian2D colliders!
+        .add_plugins(PhysicsPlugins::default())
+        .add_systems(Startup, load_map)
+        .run();
+}
+
+fn load_map(mut commands: Commands, asset_server: Res<AssetServer>) {
+    commands.spawn(Camera2d);
+    // Collisions are spawned automatically from tile properties!
+    commands.spawn(MapHandle::new(asset_server.load("maps/level.map.json")));
+}
+```
+
+The `MapCollisionPlugin` reads collision shapes defined in the tileset editor and spawns corresponding Avian2D `Collider` components. Query `MapCollider` to access original collision data.
 
 ## Re-exported Types
 

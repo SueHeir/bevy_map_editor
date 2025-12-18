@@ -6,7 +6,7 @@ use bevy::input::mouse::MouseWheel;
 use bevy::prelude::*;
 use bevy_egui::EguiContexts;
 use bevy_map_autotile;
-use bevy_map_core::{EntityInstance, LayerData};
+use bevy_map_core::{EntityInstance, LayerData, OCCUPIED_CELL};
 use std::collections::HashMap;
 
 use crate::commands::{
@@ -177,6 +177,7 @@ fn handle_viewport_input(
     mut input_state: ResMut<ViewportInputState>,
     mut stroke_tracker: ResMut<PaintStrokeTracker>,
     mut history: ResMut<CommandHistory>,
+    tileset_cache: Res<crate::ui::TilesetTextureCache>,
     windows: Query<&Window>,
     camera_q: Query<(&Camera, &GlobalTransform), With<Camera2d>>,
     mouse_buttons: Res<ButtonInput<MouseButton>>,
@@ -547,6 +548,7 @@ fn handle_viewport_input(
                     &mut project,
                     &mut render_state,
                     &mut stroke_tracker,
+                    &tileset_cache,
                     world_pos,
                 );
             }
@@ -561,6 +563,7 @@ fn handle_viewport_input(
                     &mut render_state,
                     &mut input_state,
                     &mut stroke_tracker,
+                    &tileset_cache,
                     world_pos,
                     full_tile_mode,
                 );
@@ -572,6 +575,7 @@ fn handle_viewport_input(
                     &mut project,
                     &mut render_state,
                     &mut stroke_tracker,
+                    &tileset_cache,
                     world_pos,
                 );
             }
@@ -617,15 +621,28 @@ fn handle_zoom_input(
     mut contexts: EguiContexts,
     mut editor_state: ResMut<EditorState>,
     mut scroll_events: bevy::ecs::event::EventReader<MouseWheel>,
+    windows: Query<&Window>,
 ) {
     let Ok(ctx) = contexts.ctx_mut() else { return };
+    let Ok(window) = windows.single() else { return };
 
-    // Check if we're hovering over an egui widget that wants pointer input
-    let egui_wants_pointer = ctx.wants_pointer_input();
+    // Only block zoom if egui is actively using the pointer (dragging, etc.)
+    // or if we're over a side panel area (which has scroll areas)
+    let egui_using_pointer = ctx.is_using_pointer();
+
+    // Check if cursor is over a side panel (left tree view or right inspector)
+    // These have ScrollAreas that should receive scroll events
+    let over_side_panel = if let Some(cursor_pos) = window.cursor_position() {
+        let window_width = window.resolution.width();
+        // Left panel is roughly 250px, right panel is roughly 250px
+        cursor_pos.x < 250.0 || cursor_pos.x > (window_width - 250.0)
+    } else {
+        false
+    };
 
     for event in scroll_events.read() {
-        // Skip zoom if egui wants pointer input
-        if egui_wants_pointer {
+        // Skip zoom if egui is actively using pointer or cursor is over side panels
+        if egui_using_pointer || over_side_panel {
             continue;
         }
         let zoom_delta = event.y * 0.1;
@@ -963,6 +980,7 @@ fn paint_tile(
     project: &mut Project,
     render_state: &mut RenderState,
     stroke_tracker: &mut PaintStrokeTracker,
+    tileset_cache: &crate::ui::TilesetTextureCache,
     world_pos: Vec2,
 ) {
     // Need a selected level, layer, tile, and tileset
@@ -984,14 +1002,16 @@ fn paint_tile(
         return;
     }
 
-    // Get tile size from the selected tileset and collect valid tileset IDs
+    // Get tile size and grid size from the selected tileset and collect valid tileset IDs
     // (collect before mutable borrow of level)
-    let tile_size = project
+    let tileset_info = project
         .tilesets
         .iter()
         .find(|t| t.id == selected_tileset)
-        .map(|t| t.tile_size as f32)
-        .unwrap_or(32.0);
+        .map(|t| (t.tile_size as f32, t.get_tile_grid_size(tile_index)));
+    let tile_size = tileset_info.map(|(ts, _)| ts).unwrap_or(32.0);
+    let (grid_width, grid_height) = tileset_info.map(|(_, gs)| gs).unwrap_or((1, 1));
+    let is_multi_cell = grid_width > 1 || grid_height > 1;
     let valid_tileset_ids: HashSet<_> = project.tilesets.iter().map(|t| t.id).collect();
 
     // Convert world position to tile coordinates (Y is flipped in bevy_ecs_tilemap)
@@ -1033,9 +1053,16 @@ fn paint_tile(
                 "Layer has tiles from a deleted tileset. Clearing orphaned data and assigning new tileset."
             );
             if let Some(layer) = level.layers.get_mut(layer_idx) {
-                if let LayerData::Tiles { tileset_id, tiles } = &mut layer.data {
+                if let LayerData::Tiles {
+                    tileset_id,
+                    tiles,
+                    occupied_cells,
+                } = &mut layer.data
+                {
                     // Clear all orphaned tiles
                     tiles.iter_mut().for_each(|t| *t = None);
+                    // Clear multi-cell tile tracking
+                    occupied_cells.clear();
                     // Assign the selected tileset
                     *tileset_id = selected_tileset;
                 }
@@ -1053,12 +1080,19 @@ fn paint_tile(
         }
     }
 
-    // Get old tile for undo tracking
-    let old_tile = level.get_tile(layer_idx, tile_x, tile_y);
-
-    // Set the tile
-    level.set_tile(layer_idx, tile_x, tile_y, Some(tile_index));
-    project.mark_dirty();
+    // For multi-cell tiles, check if all cells are within bounds
+    if is_multi_cell {
+        for dy in 0..grid_height {
+            for dx in 0..grid_width {
+                let cx = tile_x + dx;
+                let cy = tile_y + dy;
+                if cx >= level.width || cy >= level.height {
+                    // Out of bounds - can't place this multi-cell tile here
+                    return;
+                }
+            }
+        }
+    }
 
     // Track changes for undo
     if !stroke_tracker.active {
@@ -1069,27 +1103,79 @@ fn paint_tile(
         stroke_tracker.description = "Paint Tiles".to_string();
     }
 
-    if !stroke_tracker.changes.contains_key(&(tile_x, tile_y)) {
-        stroke_tracker
-            .changes
-            .insert((tile_x, tile_y), (old_tile, Some(tile_index)));
+    // Collect tiles to update for rendering (after level borrow is released)
+    let mut tiles_to_update: Vec<(u32, u32, Option<u32>)> = Vec::new();
+
+    if is_multi_cell {
+        // Multi-cell tile placement
+        let base_idx = (tile_y * level.width + tile_x) as usize;
+        let level_width = level.width;
+
+        for dy in 0..grid_height {
+            for dx in 0..grid_width {
+                let cx = tile_x + dx;
+                let cy = tile_y + dy;
+                let cell_idx = (cy * level_width + cx) as usize;
+                let old_tile = level.get_tile(layer_idx, cx, cy);
+
+                let new_tile = if dx == 0 && dy == 0 {
+                    // Base cell - place the actual tile
+                    level.set_tile(layer_idx, cx, cy, Some(tile_index));
+                    Some(tile_index)
+                } else {
+                    // Occupied cell - place sentinel value
+                    level.set_tile(layer_idx, cx, cy, Some(OCCUPIED_CELL));
+                    // Track in occupied_cells map
+                    if let Some(layer) = level.layers.get_mut(layer_idx) {
+                        if let LayerData::Tiles { occupied_cells, .. } = &mut layer.data {
+                            occupied_cells.insert(cell_idx, base_idx);
+                        }
+                    }
+                    Some(OCCUPIED_CELL)
+                };
+
+                // Track for undo
+                if !stroke_tracker.changes.contains_key(&(cx, cy)) {
+                    stroke_tracker.changes.insert((cx, cy), (old_tile, new_tile));
+                } else if let Some(change) = stroke_tracker.changes.get_mut(&(cx, cy)) {
+                    change.1 = new_tile;
+                }
+
+                tiles_to_update.push((cx, cy, new_tile));
+            }
+        }
     } else {
-        if let Some(change) = stroke_tracker.changes.get_mut(&(tile_x, tile_y)) {
+        // Standard single-cell tile placement
+        let old_tile = level.get_tile(layer_idx, tile_x, tile_y);
+        level.set_tile(layer_idx, tile_x, tile_y, Some(tile_index));
+
+        if !stroke_tracker.changes.contains_key(&(tile_x, tile_y)) {
+            stroke_tracker
+                .changes
+                .insert((tile_x, tile_y), (old_tile, Some(tile_index)));
+        } else if let Some(change) = stroke_tracker.changes.get_mut(&(tile_x, tile_y)) {
             change.1 = Some(tile_index);
         }
+
+        tiles_to_update.push((tile_x, tile_y, Some(tile_index)));
     }
 
-    // Update tile rendering incrementally (instead of full rebuild)
-    crate::render::update_tile(
-        commands,
-        render_state,
-        project,
-        level_id,
-        layer_idx,
-        tile_x,
-        tile_y,
-        Some(tile_index),
-    );
+    // Update tile rendering for all changed tiles (level borrow is released by block end)
+    for (cx, cy, new_tile) in tiles_to_update {
+        crate::render::update_tile(
+            commands,
+            render_state,
+            project,
+            tileset_cache,
+            level_id,
+            layer_idx,
+            cx,
+            cy,
+            new_tile,
+        );
+    }
+
+    project.mark_dirty();
     editor_state.is_painting = true;
     editor_state.last_painted_tile = Some((tile_x, tile_y));
 }
@@ -1101,6 +1187,7 @@ fn erase_tile(
     project: &mut Project,
     render_state: &mut RenderState,
     stroke_tracker: &mut PaintStrokeTracker,
+    tileset_cache: &crate::ui::TilesetTextureCache,
     world_pos: Vec2,
 ) {
     let Some(level_id) = editor_state.selected_level else {
@@ -1124,19 +1211,84 @@ fn erase_tile(
         return;
     }
 
-    let Some(level) = project.get_level_mut(level_id) else {
+    // First pass: Get all needed info from level (immutable borrow)
+    let erase_info: Option<(u32, u32, u32, u32, u32, u32, bool)> = {
+        let Some(level) = project.get_level(level_id) else {
+            return;
+        };
+        if tile_x < 0 || tile_y < 0 || tile_x >= level.width as i32 || tile_y >= level.height as i32
+        {
+            return;
+        }
+
+        let tile_x = tile_x as u32;
+        let tile_y = tile_y as u32;
+        let cell_idx = (tile_y * level.width + tile_x) as usize;
+        let level_width = level.width;
+
+        // Check if this is part of a multi-cell tile
+        let base_cell_idx = if let Some(layer) = level.layers.get(layer_idx) {
+            if let LayerData::Tiles { occupied_cells, .. } = &layer.data {
+                occupied_cells.get(&cell_idx).copied()
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        // Find the base cell (either this cell or the one it points to)
+        let actual_base_idx = base_cell_idx.unwrap_or(cell_idx);
+        let base_x = (actual_base_idx % level_width as usize) as u32;
+        let base_y = (actual_base_idx / level_width as usize) as u32;
+
+        // Get the tile at the base cell and tileset ID to determine grid size
+        let base_tile = level.get_tile(layer_idx, base_x, base_y);
+        let tileset_id = level.layers.get(layer_idx).and_then(|l| {
+            if let LayerData::Tiles { tileset_id, .. } = &l.data {
+                Some(*tileset_id)
+            } else {
+                None
+            }
+        });
+
+        // Determine grid size
+        let (grid_width, grid_height) = if let Some(tile_index) = base_tile {
+            if tile_index != OCCUPIED_CELL {
+                if let Some(ts_id) = tileset_id {
+                    project
+                        .tilesets
+                        .iter()
+                        .find(|t| t.id == ts_id)
+                        .map(|t| t.get_tile_grid_size(tile_index))
+                        .unwrap_or((1, 1))
+                } else {
+                    (1, 1)
+                }
+            } else {
+                (1, 1)
+            }
+        } else {
+            (1, 1)
+        };
+
+        let is_multi_cell = grid_width > 1 || grid_height > 1;
+
+        Some((
+            tile_x,
+            tile_y,
+            base_x,
+            base_y,
+            grid_width,
+            grid_height,
+            is_multi_cell,
+        ))
+    };
+
+    let Some((tile_x, tile_y, base_x, base_y, grid_width, grid_height, is_multi_cell)) = erase_info
+    else {
         return;
     };
-    if tile_x < 0 || tile_y < 0 || tile_x >= level.width as i32 || tile_y >= level.height as i32 {
-        return;
-    }
-
-    let tile_x = tile_x as u32;
-    let tile_y = tile_y as u32;
-
-    let old_tile = level.get_tile(layer_idx, tile_x, tile_y);
-    level.set_tile(layer_idx, tile_x, tile_y, None);
-    project.mark_dirty();
 
     if !stroke_tracker.active {
         stroke_tracker.active = true;
@@ -1146,27 +1298,78 @@ fn erase_tile(
         stroke_tracker.description = "Erase Tiles".to_string();
     }
 
-    if !stroke_tracker.changes.contains_key(&(tile_x, tile_y)) {
-        stroke_tracker
-            .changes
-            .insert((tile_x, tile_y), (old_tile, None));
-    } else {
-        if let Some(change) = stroke_tracker.changes.get_mut(&(tile_x, tile_y)) {
-            change.1 = None;
+    // Second pass: Apply changes (mutable borrow)
+    let mut tiles_to_update: Vec<(u32, u32)> = Vec::new();
+
+    {
+        let Some(level) = project.get_level_mut(level_id) else {
+            return;
+        };
+        let level_width = level.width;
+
+        if is_multi_cell {
+            // Erase all cells of the multi-cell tile
+            for dy in 0..grid_height {
+                for dx in 0..grid_width {
+                    let cx = base_x + dx;
+                    let cy = base_y + dy;
+                    let cidx = (cy * level_width + cx) as usize;
+                    let old_tile = level.get_tile(layer_idx, cx, cy);
+
+                    level.set_tile(layer_idx, cx, cy, None);
+
+                    // Remove from occupied_cells map if not base cell
+                    if dx != 0 || dy != 0 {
+                        if let Some(layer) = level.layers.get_mut(layer_idx) {
+                            if let LayerData::Tiles { occupied_cells, .. } = &mut layer.data {
+                                occupied_cells.remove(&cidx);
+                            }
+                        }
+                    }
+
+                    // Track for undo
+                    if !stroke_tracker.changes.contains_key(&(cx, cy)) {
+                        stroke_tracker.changes.insert((cx, cy), (old_tile, None));
+                    } else if let Some(change) = stroke_tracker.changes.get_mut(&(cx, cy)) {
+                        change.1 = None;
+                    }
+
+                    tiles_to_update.push((cx, cy));
+                }
+            }
+        } else {
+            // Standard single-cell erase
+            let old_tile = level.get_tile(layer_idx, tile_x, tile_y);
+            level.set_tile(layer_idx, tile_x, tile_y, None);
+
+            if !stroke_tracker.changes.contains_key(&(tile_x, tile_y)) {
+                stroke_tracker
+                    .changes
+                    .insert((tile_x, tile_y), (old_tile, None));
+            } else if let Some(change) = stroke_tracker.changes.get_mut(&(tile_x, tile_y)) {
+                change.1 = None;
+            }
+
+            tiles_to_update.push((tile_x, tile_y));
         }
     }
 
-    // Update tile rendering incrementally (instead of full rebuild)
-    crate::render::update_tile(
-        commands,
-        render_state,
-        project,
-        level_id,
-        layer_idx,
-        tile_x,
-        tile_y,
-        None, // Erasing: set to None
-    );
+    // Third pass: Update rendering (level borrow released)
+    for (cx, cy) in tiles_to_update {
+        crate::render::update_tile(
+            commands,
+            render_state,
+            project,
+            tileset_cache,
+            level_id,
+            layer_idx,
+            cx,
+            cy,
+            None,
+        );
+    }
+
+    project.mark_dirty();
     editor_state.is_painting = true;
     editor_state.last_painted_tile = Some((tile_x, tile_y));
 }
@@ -1445,6 +1648,7 @@ fn paint_terrain_tile(
     render_state: &mut RenderState,
     input_state: &mut ViewportInputState,
     stroke_tracker: &mut PaintStrokeTracker,
+    tileset_cache: &crate::ui::TilesetTextureCache,
     world_pos: Vec2,
     full_tile_mode: bool,
 ) {
@@ -1472,6 +1676,7 @@ fn paint_terrain_tile(
             render_state,
             input_state,
             stroke_tracker,
+            tileset_cache,
             world_pos,
             level_id,
             layer_idx,
@@ -1487,6 +1692,7 @@ fn paint_terrain_tile(
             project,
             render_state,
             stroke_tracker,
+            tileset_cache,
             world_pos,
             level_id,
             layer_idx,
@@ -1534,6 +1740,7 @@ fn paint_terrain_set_tile(
     render_state: &mut RenderState,
     input_state: &mut ViewportInputState,
     stroke_tracker: &mut PaintStrokeTracker,
+    tileset_cache: &crate::ui::TilesetTextureCache,
     world_pos: Vec2,
     level_id: uuid::Uuid,
     layer_idx: usize,
@@ -1729,6 +1936,7 @@ fn paint_terrain_set_tile(
             commands,
             render_state,
             project,
+            tileset_cache,
             level_id,
             layer_idx,
             x,
@@ -1751,6 +1959,7 @@ fn paint_legacy_terrain_tile(
     project: &mut Project,
     render_state: &mut RenderState,
     stroke_tracker: &mut PaintStrokeTracker,
+    tileset_cache: &crate::ui::TilesetTextureCache,
     world_pos: Vec2,
     level_id: uuid::Uuid,
     layer_idx: usize,
@@ -1863,6 +2072,7 @@ fn paint_legacy_terrain_tile(
                     commands,
                     render_state,
                     project,
+                    tileset_cache,
                     level_id,
                     layer_idx,
                     x,

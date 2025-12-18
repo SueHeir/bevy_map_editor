@@ -242,8 +242,9 @@ fn load_tileset_textures(
             continue;
         }
 
-        // Start loading the image
-        let handle: Handle<Image> = asset_server.load(&image_path);
+        // Start loading the image (convert path for Bevy's AssetServer)
+        let asset_path = crate::to_asset_path(&image_path);
+        let handle: Handle<Image> = asset_server.load(&asset_path);
         cache
             .pending
             .insert(image_id, (PathBuf::from(&image_path), handle));
@@ -357,9 +358,10 @@ fn load_spritesheet_textures(
             continue;
         }
 
-        // Start loading the image (path should be relative to assets directory)
+        // Start loading the image (convert path for Bevy's AssetServer)
         debug!("Loading spritesheet: {}", sheet_path);
-        let handle: Handle<Image> = asset_server.load(&sheet_path);
+        let asset_path = crate::to_asset_path(&sheet_path);
+        let handle: Handle<Image> = asset_server.load(&asset_path);
         cache.pending.insert(sheet_path, handle);
     }
 }
@@ -396,8 +398,6 @@ fn render_ui(
         egui::SidePanel::left("tree_view")
             .resizable(true)
             .default_width(ui_state.tree_view_width)
-            .min_width(150.0)
-            .max_width(400.0)
             .show(ctx, |ui| {
                 ui_state.tree_view_width = ui.available_width();
                 tree_view_result = render_tree_view(ui, &mut editor_state, &mut project);
@@ -410,20 +410,17 @@ fn render_ui(
         egui::SidePanel::right("inspector")
             .resizable(true)
             .default_width(ui_state.inspector_width)
-            .min_width(200.0)
-            .max_width(500.0)
             .show(ctx, |ui| {
                 ui_state.inspector_width = ui.available_width();
 
                 // Split the panel: Inspector at top, Terrain Palette at bottom
                 let available_height = ui.available_height();
-                let inspector_height = (available_height * 0.5).max(150.0);
+                let inspector_height = available_height * 0.5;
 
                 // Top: Inspector
                 egui::TopBottomPanel::top("inspector_top")
                     .resizable(true)
                     .default_height(inspector_height)
-                    .min_height(100.0)
                     .show_inside(ui, |ui| {
                         egui::ScrollArea::vertical()
                             .id_salt("inspector_scroll")

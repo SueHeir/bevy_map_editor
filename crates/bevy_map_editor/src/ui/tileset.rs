@@ -186,6 +186,11 @@ fn render_multi_image_tileset(
                                         let selected =
                                             editor_state.selected_tile == Some(virtual_index);
 
+                                        // Check if this is a multi-cell tile
+                                        let (grid_width, grid_height) =
+                                            tileset.get_tile_grid_size(virtual_index);
+                                        let is_multi_cell = grid_width > 1 || grid_height > 1;
+
                                         let uv_min = egui::pos2(
                                             col as f32 * uv_tile_width,
                                             row as f32 * uv_tile_height,
@@ -206,14 +211,33 @@ fn render_multi_image_tileset(
                                             .rounding(0.0),
                                         );
 
+                                        // Draw visual indicator for multi-cell tiles
+                                        if is_multi_cell {
+                                            let rect = response.rect;
+                                            ui.painter().rect_stroke(
+                                                rect,
+                                                0.0,
+                                                egui::Stroke::new(2.0, egui::Color32::from_rgb(255, 165, 0)), // Orange border
+                                                egui::StrokeKind::Outside,
+                                            );
+                                        }
+
                                         if response.clicked() {
                                             editor_state.selected_tile = Some(virtual_index);
                                         }
 
-                                        response.on_hover_text(format!(
-                                            "Tile {} ({} #{})",
-                                            virtual_index, image.name, local_index
-                                        ));
+                                        let hover_text = if is_multi_cell {
+                                            format!(
+                                                "Tile {} ({} #{}) - {}x{} cells",
+                                                virtual_index, image.name, local_index, grid_width, grid_height
+                                            )
+                                        } else {
+                                            format!(
+                                                "Tile {} ({} #{})",
+                                                virtual_index, image.name, local_index
+                                            )
+                                        };
+                                        response.on_hover_text(hover_text);
                                     }
                                 });
                             }

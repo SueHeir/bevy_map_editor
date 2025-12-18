@@ -164,21 +164,23 @@ fn main() {
 
 ## Examples
 
-| Example                 | Description                     |
-|-------------------------|---------------------------------|
-| `basic_editor`          | Full editor with all features   |
-| `runtime_loader`        | Load and display a map          |
-| `animation_auto_demo`   | Auto-loading animated sprites   |
-| `animation_manual_demo` | Manual sprite animation control |
-| `dialogue_auto_demo`    | Auto-loading dialogue trees     |
-| `dialogue_manual_demo`  | Manual dialogue handling        |
-| `custom_entities_demo`  | Custom entity types             |
-| `tileset_demo`          | Tileset rendering               |
+| Example                   | Description                                    |
+|---------------------------|------------------------------------------------|
+| `custom_editor`           | Embed editor with custom configuration         |
+| `runtime_loader`          | Load and display a map                         |
+| `collision_demo`          | Physics integration with Avian2D collisions    |
+| `animation_auto_demo`     | Auto-loading animated sprites                  |
+| `animation_manual_demo`   | Manual sprite animation control                |
+| `animation_triggers_demo` | Animation triggers and windows                 |
+| `dialogue_auto_demo`      | Auto-loading dialogue trees                    |
+| `dialogue_manual_demo`    | Manual dialogue handling                       |
+| `custom_entities_demo`    | Custom entity types from map data              |
+| `tileset_demo`            | Tileset rendering and tile properties          |
 
 Run examples:
 ```bash
-cargo run --example basic_editor -p bevy_map_editor_examples
-cargo run --example runtime_loader -p bevy_map_editor_examples
+cargo run --example custom_editor -p bevy_map_editor_examples
+cargo run --example collision_demo -p bevy_map_editor_examples
 ```
 
 ## Map File Format

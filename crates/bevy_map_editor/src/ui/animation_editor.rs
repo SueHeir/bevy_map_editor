@@ -257,7 +257,6 @@ pub fn render_animation_editor(
                 egui::TopBottomPanel::bottom("frame_picker_panel")
                     .resizable(true)
                     .default_height(150.0)
-                    .min_height(100.0)
                     .show_separator_line(true)
                     .show_inside(ui, |ui| {
                         render_frame_picker(ui, state, &mut result);
@@ -268,7 +267,6 @@ pub fn render_animation_editor(
             egui::TopBottomPanel::bottom("anim_details_panel")
                 .resizable(true)
                 .default_height(80.0)
-                .min_height(60.0)
                 .show_separator_line(true)
                 .show_inside(ui, |ui| {
                     render_details_panel(ui, state, &mut result);

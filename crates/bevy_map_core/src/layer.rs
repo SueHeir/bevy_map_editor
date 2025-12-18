@@ -1,7 +1,11 @@
 //! Layer types for tile and object layers
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use uuid::Uuid;
+
+/// Sentinel value for cells occupied by multi-cell tiles (but not the base cell)
+pub const OCCUPIED_CELL: u32 = u32::MAX;
 
 /// A layer (tiles or objects)
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -21,6 +25,7 @@ impl Layer {
             data: LayerData::Tiles {
                 tileset_id,
                 tiles: vec![None; size],
+                occupied_cells: HashMap::new(),
             },
         }
     }
@@ -68,7 +73,12 @@ pub enum LayerData {
         /// The tileset used for this layer
         tileset_id: Uuid,
         /// Tile data - None means empty, Some(idx) is a virtual tile index
+        /// For multi-cell tiles: base cell has the tile index, other cells have OCCUPIED_CELL
         tiles: Vec<Option<u32>>,
+        /// Maps occupied cell indices to their base cell index (for multi-cell tiles)
+        /// Only populated for cells that are part of a multi-cell tile but not the base
+        #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+        occupied_cells: HashMap<usize, usize>,
     },
     /// Object layer containing entity references
     Objects {
@@ -90,9 +100,15 @@ mod tests {
         assert!(layer.visible);
         assert_eq!(layer.layer_type(), LayerType::Tiles);
 
-        if let LayerData::Tiles { tiles, .. } = &layer.data {
+        if let LayerData::Tiles {
+            tiles,
+            occupied_cells,
+            ..
+        } = &layer.data
+        {
             assert_eq!(tiles.len(), 100);
             assert!(tiles.iter().all(|t| t.is_none()));
+            assert!(occupied_cells.is_empty());
         } else {
             panic!("Expected tile layer");
         }

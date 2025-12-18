@@ -18,7 +18,7 @@ mod value;
 
 pub use collision::{CollisionData, CollisionShape, OneWayDirection, PhysicsBody};
 pub use entity::EntityInstance;
-pub use layer::{Layer, LayerData, LayerType};
+pub use layer::{Layer, LayerData, LayerType, OCCUPIED_CELL};
 pub use level::Level;
 pub use project::{EditorProject, MapProject, MapProjectBuilder};
 pub use tileset::{TileProperties, Tileset, TilesetImage};

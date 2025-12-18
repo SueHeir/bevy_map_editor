@@ -20,6 +20,22 @@ pub struct TileProperties {
     /// Custom user-defined properties
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub custom: HashMap<String, serde_json::Value>,
+    /// Width in grid cells (for multi-cell tiles like trees)
+    #[serde(default = "default_one", skip_serializing_if = "is_one")]
+    pub grid_width: u32,
+    /// Height in grid cells (for multi-cell tiles like trees)
+    #[serde(default = "default_one", skip_serializing_if = "is_one")]
+    pub grid_height: u32,
+}
+
+/// Default value of 1 for grid dimensions
+fn default_one() -> u32 {
+    1
+}
+
+/// Check if value equals 1 (for skipping serialization)
+fn is_one(val: &u32) -> bool {
+    *val == 1
 }
 
 /// Deserialize collision data with backward compatibility for old bool format
@@ -113,7 +129,28 @@ impl TileProperties {
 
     /// Check if any properties are set (non-default)
     pub fn is_empty(&self) -> bool {
-        self.collision.is_empty() && self.animation_frames.is_none() && self.custom.is_empty()
+        self.collision.is_empty()
+            && self.animation_frames.is_none()
+            && self.custom.is_empty()
+            && self.grid_width == 1
+            && self.grid_height == 1
+    }
+
+    /// Check if this is a multi-cell tile (spans more than 1x1 grid cells)
+    pub fn is_multi_cell(&self) -> bool {
+        self.grid_width > 1 || self.grid_height > 1
+    }
+
+    /// Get the grid size (width, height) in cells
+    pub fn grid_size(&self) -> (u32, u32) {
+        (self.grid_width, self.grid_height)
+    }
+
+    /// Set the grid size for multi-cell tiles
+    pub fn with_grid_size(mut self, width: u32, height: u32) -> Self {
+        self.grid_width = width.max(1);
+        self.grid_height = height.max(1);
+        self
     }
 }
 
@@ -409,6 +446,34 @@ impl Tileset {
         let col = local_index % image.columns;
         let row = local_index / image.columns;
         Some((col, row))
+    }
+
+    /// Get the grid size for a tile (width, height in cells)
+    /// Returns (1, 1) for tiles without multi-cell properties
+    pub fn get_tile_grid_size(&self, tile_index: u32) -> (u32, u32) {
+        self.tile_properties
+            .get(&tile_index)
+            .map(|p| p.grid_size())
+            .unwrap_or((1, 1))
+    }
+
+    /// Check if a tile is multi-cell (spans more than 1x1 grid cells)
+    pub fn is_multi_cell_tile(&self, tile_index: u32) -> bool {
+        self.tile_properties
+            .get(&tile_index)
+            .map(|p| p.is_multi_cell())
+            .unwrap_or(false)
+    }
+
+    /// Set the grid size for a tile
+    pub fn set_tile_grid_size(&mut self, tile_index: u32, width: u32, height: u32) {
+        let props = self.get_tile_properties_mut(tile_index);
+        props.grid_width = width.max(1);
+        props.grid_height = height.max(1);
+        // Clean up if properties are now empty
+        if props.is_empty() {
+            self.tile_properties.remove(&tile_index);
+        }
     }
 }
 

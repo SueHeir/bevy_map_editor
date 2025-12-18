@@ -1324,6 +1324,7 @@ dependencies = [
 name = "bevy_map_editor_examples"
 version = "0.1.0"
 dependencies = [
+ "avian2d",
  "bevy",
  "bevy_map_animation",
  "bevy_map_autotile",

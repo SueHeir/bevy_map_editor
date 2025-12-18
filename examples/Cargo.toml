@@ -13,17 +13,18 @@ bevy = { workspace = true }
 bevy_map_core = { workspace = true }
 bevy_map_autotile = { workspace = true }
 bevy_map_derive = { workspace = true }
-bevy_map_runtime = { workspace = true }
+bevy_map_runtime = { workspace = true, features = ["physics"] }
 bevy_map_animation = { workspace = true }
 bevy_map_dialogue = { workspace = true }
 bevy_map_editor = { workspace = true, features = ["runtime"] }
+avian2d = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 uuid = { workspace = true }
 
 [[example]]
-name = "basic_editor"
-path = "basic_editor/main.rs"
+name = "custom_editor"
+path = "custom_editor/main.rs"
 
 [[example]]
 name = "runtime_loader"
@@ -59,6 +60,11 @@ path = "custom_entities/demo.rs"
 [[example]]
 name = "tileset_demo"
 path = "tileset/demo.rs"
+
+# Collision demo - physics integration
+[[example]]
+name = "collision_demo"
+path = "collision/demo.rs"
 
 [lints]
 workspace = true
