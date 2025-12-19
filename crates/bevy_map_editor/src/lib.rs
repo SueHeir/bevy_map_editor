@@ -235,6 +235,16 @@ pub struct TerrainPreviewState {
     pub tileset_id: Option<uuid::Uuid>,
 }
 
+/// Preview state for brush (tile) painting
+/// Shows the selected tile at cursor position before placing
+#[derive(Default)]
+pub struct BrushPreviewState {
+    /// Current tile position in tile coordinates
+    pub position: Option<(i32, i32)>,
+    /// Whether preview is currently active
+    pub active: bool,
+}
+
 /// Item currently being renamed inline
 #[derive(Clone, Debug, PartialEq)]
 pub enum RenamingItem {
@@ -523,6 +533,9 @@ pub struct EditorState {
     // Terrain painting preview
     pub terrain_preview: TerrainPreviewState,
 
+    // Brush painting preview (for regular tiles)
+    pub brush_preview: BrushPreviewState,
+
     // Inline rename state
     /// Item currently being renamed (None when not in rename mode)
     pub renaming_item: Option<RenamingItem>,
@@ -629,6 +642,7 @@ impl Default for EditorState {
             pending_copy_callback: CopyFileCallback::None,
 
             terrain_preview: TerrainPreviewState::default(),
+            brush_preview: BrushPreviewState::default(),
 
             renaming_item: None,
             rename_buffer: String::new(),

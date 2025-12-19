@@ -7,6 +7,42 @@ use super::{ImageLoadState, TilesetTextureCache};
 use crate::project::Project;
 use crate::EditorState;
 
+/// Find the base tile index if the clicked position is within a merged tile region.
+/// Returns the base tile index (top-left of merged region) or the original index if not in a merged region.
+fn find_base_tile_for_position(
+    tileset: &Tileset,
+    virtual_offset: u32,
+    cols: u32,
+    rows: u32,
+    clicked_idx: u32,
+) -> u32 {
+    // Calculate clicked position within this image
+    let local_idx = clicked_idx.saturating_sub(virtual_offset);
+    let clicked_col = local_idx % cols;
+    let clicked_row = local_idx / cols;
+
+    // Check all tiles to see if clicked position falls within a multi-cell region
+    for row in 0..rows {
+        for col in 0..cols {
+            let base_idx = virtual_offset + row * cols + col;
+            if let Some(props) = tileset.get_tile_properties(base_idx) {
+                if props.grid_width > 1 || props.grid_height > 1 {
+                    let end_col = col + props.grid_width - 1;
+                    let end_row = row + props.grid_height - 1;
+                    if clicked_col >= col
+                        && clicked_col <= end_col
+                        && clicked_row >= row
+                        && clicked_row <= end_row
+                    {
+                        return base_idx;
+                    }
+                }
+            }
+        }
+    }
+    clicked_idx // Not in any merged region, return original
+}
+
 pub fn render_tileset_palette(
     ui: &mut egui::Ui,
     editor_state: &mut EditorState,
@@ -177,6 +213,9 @@ fn render_multi_image_tileset(
                             let uv_tile_width = 1.0 / image.columns.max(1) as f32;
                             let uv_tile_height = 1.0 / image.rows.max(1) as f32;
 
+                            // Collect tile rects for drawing combined multi-cell borders
+                            let mut tile_rects: Vec<(u32, u32, egui::Rect, u32)> = Vec::new();
+
                             for row in 0..image.rows {
                                 ui.horizontal(|ui| {
                                     ui.spacing_mut().item_spacing = egui::vec2(1.0, 1.0);
@@ -211,19 +250,19 @@ fn render_multi_image_tileset(
                                             .rounding(0.0),
                                         );
 
-                                        // Draw visual indicator for multi-cell tiles
-                                        if is_multi_cell {
-                                            let rect = response.rect;
-                                            ui.painter().rect_stroke(
-                                                rect,
-                                                0.0,
-                                                egui::Stroke::new(2.0, egui::Color32::from_rgb(255, 165, 0)), // Orange border
-                                                egui::StrokeKind::Outside,
-                                            );
-                                        }
+                                        // Track rect for combined border drawing
+                                        tile_rects.push((col, row, response.rect, virtual_index));
 
                                         if response.clicked() {
-                                            editor_state.selected_tile = Some(virtual_index);
+                                            // Redirect clicks within merged tile regions to the base tile
+                                            let base_tile = find_base_tile_for_position(
+                                                tileset,
+                                                virtual_offset,
+                                                image.columns,
+                                                image.rows,
+                                                virtual_index,
+                                            );
+                                            editor_state.selected_tile = Some(base_tile);
                                         }
 
                                         let hover_text = if is_multi_cell {
@@ -240,6 +279,64 @@ fn render_multi_image_tileset(
                                         response.on_hover_text(hover_text);
                                     }
                                 });
+                            }
+
+                            // Draw overlay images and borders for multi-cell tile regions
+                            for row in 0..image.rows {
+                                for col in 0..image.columns {
+                                    let tile_idx = virtual_offset + row * image.columns + col;
+                                    if let Some(props) = tileset.get_tile_properties(tile_idx) {
+                                        if props.grid_width > 1 || props.grid_height > 1 {
+                                            // This is a merged tile base - combine rects
+                                            let end_col = col + props.grid_width - 1;
+                                            let end_row = row + props.grid_height - 1;
+
+                                            let mut combined_rect: Option<egui::Rect> = None;
+                                            for &(tc, tr, rect, _) in &tile_rects {
+                                                if tc >= col
+                                                    && tc <= end_col
+                                                    && tr >= row
+                                                    && tr <= end_row
+                                                {
+                                                    combined_rect = Some(match combined_rect {
+                                                        None => rect,
+                                                        Some(r) => r.union(rect),
+                                                    });
+                                                }
+                                            }
+
+                                            if let Some(rect) = combined_rect {
+                                                // Draw the merged tile image as overlay (covering gaps)
+                                                let uv_min = egui::pos2(
+                                                    col as f32 * uv_tile_width,
+                                                    row as f32 * uv_tile_height,
+                                                );
+                                                let uv_max = egui::pos2(
+                                                    (col + props.grid_width) as f32 * uv_tile_width,
+                                                    (row + props.grid_height) as f32 * uv_tile_height,
+                                                );
+
+                                                ui.painter().image(
+                                                    tex_id,
+                                                    rect,
+                                                    egui::Rect::from_min_max(uv_min, uv_max),
+                                                    egui::Color32::WHITE,
+                                                );
+
+                                                // Draw border on top
+                                                ui.painter().rect_stroke(
+                                                    rect.expand(1.0),
+                                                    0.0,
+                                                    egui::Stroke::new(
+                                                        2.0,
+                                                        egui::Color32::from_rgb(255, 165, 0),
+                                                    ),
+                                                    egui::StrokeKind::Outside,
+                                                );
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         } else {
                             // Fallback: numbered buttons (shouldn't happen if Loaded)

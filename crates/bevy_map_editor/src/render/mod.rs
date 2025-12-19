@@ -24,6 +24,7 @@ impl Plugin for MapRenderPlugin {
             .init_resource::<RenderState>()
             .init_resource::<SelectionRenderState>()
             .init_resource::<TerrainPreviewCache>()
+            .init_resource::<BrushPreviewCache>()
             .init_resource::<EntityRenderState>()
             .init_resource::<CollisionOverlayCache>()
             .add_systems(Update, sync_level_rendering)
@@ -33,6 +34,7 @@ impl Plugin for MapRenderPlugin {
             .add_systems(Update, sync_selection_preview)
             .add_systems(Update, sync_tile_selection_highlights)
             .add_systems(Update, sync_terrain_preview)
+            .add_systems(Update, sync_brush_preview)
             .add_systems(Update, sync_entity_rendering)
             .add_systems(Update, update_camera_from_editor_state);
     }
@@ -592,6 +594,63 @@ pub fn update_tile(
                     }
                 }
 
+                // Create tilemap on-demand if it doesn't exist
+                if render_state.tile_storages.get(&key).is_none() {
+                    // Get texture handle from cache
+                    let texture_handle = tileset.images.get(image_index).and_then(|image| {
+                        tileset_cache
+                            .loaded
+                            .get(&image.id)
+                            .map(|(handle, _, _, _)| handle.clone())
+                    });
+
+                    if let Some(texture_handle) = texture_handle {
+                        let map_size = TilemapSize {
+                            x: level.width,
+                            y: level.height,
+                        };
+
+                        let tilemap_tile_size = TilemapTileSize {
+                            x: tile_size_f32,
+                            y: tile_size_f32,
+                        };
+
+                        let grid_size: TilemapGridSize = tilemap_tile_size.into();
+                        let tile_storage = TileStorage::empty(map_size);
+                        let tilemap_entity = commands.spawn_empty().id();
+
+                        let layer_z = layer_index as f32 * 0.1 + image_index as f32 * 0.01;
+                        let layer_visible = layer.visible;
+
+                        commands.entity(tilemap_entity).insert((
+                            TilemapBundle {
+                                grid_size,
+                                map_type: TilemapType::Square,
+                                size: map_size,
+                                storage: tile_storage.clone(),
+                                texture: TilemapTexture::Single(texture_handle),
+                                tile_size: tilemap_tile_size,
+                                transform: Transform::from_xyz(0.0, 0.0, layer_z),
+                                anchor: TilemapAnchor::BottomLeft,
+                                visibility: if layer_visible {
+                                    Visibility::Inherited
+                                } else {
+                                    Visibility::Hidden
+                                },
+                                ..default()
+                            },
+                            EditorTilemap {
+                                level_id,
+                                layer_index,
+                                image_index,
+                            },
+                        ));
+
+                        render_state.tilemap_entities.insert(key, tilemap_entity);
+                        render_state.tile_storages.insert(key, tile_storage);
+                    }
+                }
+
                 // Now update the correct tilemap
                 if let Some(storage) = render_state.tile_storages.get_mut(&key) {
                     let tilemap_entity = render_state.tilemap_entities[&key];
@@ -1082,6 +1141,25 @@ pub struct TerrainPreviewCache {
     pub was_active: bool,
 }
 
+/// Resource for caching brush preview entities
+#[derive(Resource, Default)]
+pub struct BrushPreviewCache {
+    /// Sprite entity for the preview tile
+    pub sprite_entity: Option<Entity>,
+    /// Border entities for the preview
+    pub border_entities: Vec<Entity>,
+    /// Last rendered position
+    pub last_position: Option<(i32, i32)>,
+    /// Last rendered tile
+    pub last_tile: Option<u32>,
+    /// Last tileset
+    pub last_tileset: Option<Uuid>,
+}
+
+/// Marker component for brush preview sprites
+#[derive(Component)]
+pub struct BrushPreviewSprite;
+
 /// Marker component for tile selection highlight sprites
 #[derive(Component)]
 pub struct TileSelectionHighlight;
@@ -1507,6 +1585,233 @@ fn sync_terrain_preview(
     }
 
     preview_cache.was_active = editor_state.terrain_preview.active;
+}
+
+/// System to render brush preview when Paint tool is active
+fn sync_brush_preview(
+    mut commands: Commands,
+    editor_state: Res<EditorState>,
+    project: Res<Project>,
+    tileset_cache: Res<TilesetTextureCache>,
+    mut preview_cache: ResMut<BrushPreviewCache>,
+    mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
+) {
+    // Helper to clear preview
+    fn clear_preview(commands: &mut Commands, cache: &mut BrushPreviewCache) {
+        if let Some(entity) = cache.sprite_entity.take() {
+            commands.entity(entity).despawn();
+        }
+        for entity in cache.border_entities.drain(..) {
+            commands.entity(entity).despawn();
+        }
+        cache.last_position = None;
+        cache.last_tile = None;
+        cache.last_tileset = None;
+    }
+
+    // Only show preview when Paint tool is active and not in terrain mode
+    let show_preview = editor_state.current_tool == EditorTool::Paint
+        && !editor_state.terrain_paint_state.is_terrain_mode
+        && editor_state.brush_preview.active
+        && editor_state.brush_preview.position.is_some()
+        && editor_state.selected_tile.is_some()
+        && editor_state.selected_tileset.is_some();
+
+    if !show_preview {
+        clear_preview(&mut commands, &mut preview_cache);
+        return;
+    }
+
+    let position = editor_state.brush_preview.position.unwrap();
+    let tile_id = editor_state.selected_tile.unwrap();
+    let tileset_id = editor_state.selected_tileset.unwrap();
+
+    // Check if we need to update
+    let needs_update = preview_cache.last_position != Some(position)
+        || preview_cache.last_tile != Some(tile_id)
+        || preview_cache.last_tileset != Some(tileset_id);
+
+    if !needs_update {
+        return;
+    }
+
+    // Clear old preview
+    clear_preview(&mut commands, &mut preview_cache);
+
+    // Get tileset
+    let Some(tileset) = project.tilesets.iter().find(|t| t.id == tileset_id) else {
+        return;
+    };
+
+    let tile_size = tileset.tile_size as f32;
+    let (grid_width, grid_height) = tileset.get_tile_grid_size(tile_id);
+    let preview_color = Color::srgba(1.0, 1.0, 1.0, 0.6);
+    let border_color = Color::srgba(0.2, 0.8, 0.2, 0.8); // Green for brush
+
+    // Calculate world position (for multi-cell tiles, center is offset)
+    let total_width = grid_width as f32 * tile_size;
+    let total_height = grid_height as f32 * tile_size;
+    let world_x = position.0 as f32 * tile_size + total_width / 2.0;
+    let world_y = position.1 as f32 * tile_size + total_height / 2.0;
+
+    // Spawn tile sprite (try to use texture, fall back to colored rectangle)
+    let mut sprite_created = false;
+    if let Some((image_index, local_tile_index)) = tileset.virtual_to_local(tile_id) {
+        if let Some(image) = tileset.images.get(image_index) {
+            if let Some((texture_handle, _, img_width, img_height)) =
+                tileset_cache.loaded.get(&image.id)
+            {
+                let columns = (*img_width as u32) / tileset.tile_size;
+                let rows = (*img_height as u32) / tileset.tile_size;
+
+                if columns > 0 && rows > 0 {
+                    if grid_width > 1 || grid_height > 1 {
+                        // Multi-cell tile: use Sprite with rect for the full region
+                        let tile_col = local_tile_index % image.columns;
+                        let tile_row = local_tile_index / image.columns;
+                        let src_x = (tile_col * tileset.tile_size) as f32;
+                        let src_y = (tile_row * tileset.tile_size) as f32;
+                        let src_width = total_width;
+                        let src_height = total_height;
+
+                        let rect = bevy::math::Rect::new(
+                            src_x,
+                            src_y,
+                            src_x + src_width,
+                            src_y + src_height,
+                        );
+
+                        let entity = commands
+                            .spawn((
+                                Sprite {
+                                    color: preview_color,
+                                    image: texture_handle.clone(),
+                                    rect: Some(rect),
+                                    custom_size: Some(Vec2::new(src_width, src_height)),
+                                    ..default()
+                                },
+                                Transform::from_xyz(world_x, world_y, 179.0),
+                                BrushPreviewSprite,
+                            ))
+                            .id();
+                        preview_cache.sprite_entity = Some(entity);
+                        sprite_created = true;
+                    } else {
+                        // Single tile: use TextureAtlas
+                        let layout = TextureAtlasLayout::from_grid(
+                            UVec2::new(tileset.tile_size, tileset.tile_size),
+                            columns,
+                            rows,
+                            None,
+                            None,
+                        );
+                        let atlas_layout_handle = texture_atlas_layouts.add(layout);
+
+                        let entity = commands
+                            .spawn((
+                                Sprite {
+                                    color: preview_color,
+                                    image: texture_handle.clone(),
+                                    texture_atlas: Some(TextureAtlas {
+                                        layout: atlas_layout_handle,
+                                        index: local_tile_index as usize,
+                                    }),
+                                    ..default()
+                                },
+                                Transform::from_xyz(world_x, world_y, 179.0),
+                                BrushPreviewSprite,
+                            ))
+                            .id();
+                        preview_cache.sprite_entity = Some(entity);
+                        sprite_created = true;
+                    }
+                }
+            }
+        }
+    }
+
+    // Fallback: show a semi-transparent highlight if texture not available
+    if !sprite_created {
+        let highlight_color = Color::srgba(0.2, 0.8, 0.2, 0.3);
+        let entity = commands
+            .spawn((
+                Sprite {
+                    color: highlight_color,
+                    custom_size: Some(Vec2::new(total_width, total_height)),
+                    ..default()
+                },
+                Transform::from_xyz(world_x, world_y, 179.0),
+                BrushPreviewSprite,
+            ))
+            .id();
+        preview_cache.sprite_entity = Some(entity);
+    }
+
+    // Draw border around preview area
+    let border_thickness = 2.0;
+    let half_width = total_width / 2.0;
+    let half_height = total_height / 2.0;
+
+    // Top border
+    let entity = commands
+        .spawn((
+            Sprite {
+                color: border_color,
+                custom_size: Some(Vec2::new(total_width, border_thickness)),
+                ..default()
+            },
+            Transform::from_xyz(world_x, world_y + half_height - border_thickness / 2.0, 181.0),
+            BrushPreviewSprite,
+        ))
+        .id();
+    preview_cache.border_entities.push(entity);
+
+    // Bottom border
+    let entity = commands
+        .spawn((
+            Sprite {
+                color: border_color,
+                custom_size: Some(Vec2::new(total_width, border_thickness)),
+                ..default()
+            },
+            Transform::from_xyz(world_x, world_y - half_height + border_thickness / 2.0, 181.0),
+            BrushPreviewSprite,
+        ))
+        .id();
+    preview_cache.border_entities.push(entity);
+
+    // Left border
+    let entity = commands
+        .spawn((
+            Sprite {
+                color: border_color,
+                custom_size: Some(Vec2::new(border_thickness, total_height)),
+                ..default()
+            },
+            Transform::from_xyz(world_x - half_width + border_thickness / 2.0, world_y, 181.0),
+            BrushPreviewSprite,
+        ))
+        .id();
+    preview_cache.border_entities.push(entity);
+
+    // Right border
+    let entity = commands
+        .spawn((
+            Sprite {
+                color: border_color,
+                custom_size: Some(Vec2::new(border_thickness, total_height)),
+                ..default()
+            },
+            Transform::from_xyz(world_x + half_width - border_thickness / 2.0, world_y, 181.0),
+            BrushPreviewSprite,
+        ))
+        .id();
+    preview_cache.border_entities.push(entity);
+
+    // Update cache
+    preview_cache.last_position = Some(position);
+    preview_cache.last_tile = Some(tile_id);
+    preview_cache.last_tileset = Some(tileset_id);
 }
 
 /// Marker component for entity sprites in the editor

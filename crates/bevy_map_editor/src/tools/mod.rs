@@ -167,6 +167,19 @@ fn calculate_targets_bounds(
     (min_x, min_y, max_x, max_y)
 }
 
+/// Get the grid size (width, height) for the currently selected tile
+/// Returns (1, 1) if no tile is selected or tileset not found
+fn get_selected_tile_grid_size(editor_state: &EditorState, project: &Project) -> (u32, u32) {
+    if let (Some(tile_id), Some(tileset_id)) =
+        (editor_state.selected_tile, editor_state.selected_tileset)
+    {
+        if let Some(tileset) = project.tilesets.iter().find(|t| t.id == tileset_id) {
+            return tileset.get_tile_grid_size(tile_id);
+        }
+    }
+    (1, 1) // Default to 1x1
+}
+
 /// System to handle viewport input (painting, panning)
 fn handle_viewport_input(
     mut commands: Commands,
@@ -195,6 +208,7 @@ fn handle_viewport_input(
     let Some(cursor_position) = window.cursor_position() else {
         input_state.is_panning = false;
         editor_state.is_painting = false;
+        editor_state.brush_preview.active = false;
         return;
     };
 
@@ -220,6 +234,7 @@ fn handle_viewport_input(
     if egui_using_pointer && !input_state.is_drawing_rect {
         input_state.is_panning = false;
         editor_state.is_painting = false;
+        editor_state.brush_preview.active = false;
         return;
     }
 
@@ -536,6 +551,30 @@ fn handle_viewport_input(
         // Clear preview while drawing rectangle
         editor_state.terrain_preview.active = false;
         input_state.last_preview_target = None;
+    }
+
+    // Update brush preview position for Paint tool (non-terrain mode)
+    // Uses center-anchoring: cursor appears at center of tile/multi-cell region
+    if editor_state.current_tool == EditorTool::Paint
+        && !editor_state.terrain_paint_state.is_terrain_mode
+        && editor_state.selected_tile.is_some()
+        && !input_state.is_drawing_rect
+        && !pointer_over_right_panel
+        && !modal_editor_open
+    {
+        // Get grid size for center-anchor offset calculation
+        let (grid_width, grid_height) = get_selected_tile_grid_size(&editor_state, &project);
+        let offset_x = (grid_width as f32 * tile_size) / 2.0;
+        let offset_y = (grid_height as f32 * tile_size) / 2.0;
+
+        // Center-anchored: offset by half tile size before floor
+        let tile_x = ((world_pos.x - offset_x) / tile_size).floor() as i32;
+        let tile_y = ((world_pos.y - offset_y) / tile_size).floor() as i32;
+        editor_state.brush_preview.position = Some((tile_x, tile_y));
+        editor_state.brush_preview.active = true;
+    } else {
+        editor_state.brush_preview.active = false;
+        editor_state.brush_preview.position = None;
     }
 
     // Point mode painting (continuous while dragging)
@@ -1014,9 +1053,12 @@ fn paint_tile(
     let is_multi_cell = grid_width > 1 || grid_height > 1;
     let valid_tileset_ids: HashSet<_> = project.tilesets.iter().map(|t| t.id).collect();
 
-    // Convert world position to tile coordinates (Y is flipped in bevy_ecs_tilemap)
-    let tile_x = (world_pos.x / tile_size).floor() as i32;
-    let tile_y = (world_pos.y / tile_size).floor() as i32;
+    // Convert world position to tile coordinates with center-anchoring
+    // Offset by half the tile/multi-cell size so cursor appears at center
+    let offset_x = (grid_width as f32 * tile_size) / 2.0;
+    let offset_y = (grid_height as f32 * tile_size) / 2.0;
+    let tile_x = ((world_pos.x - offset_x) / tile_size).floor() as i32;
+    let tile_y = ((world_pos.y - offset_y) / tile_size).floor() as i32;
 
     // Don't repaint the same tile
     if editor_state.last_painted_tile == Some((tile_x as u32, tile_y as u32)) {
