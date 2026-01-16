@@ -207,53 +207,57 @@ jobs:
   publish-crates:
     name: Publish to crates.io
     runs-on: ubuntu-latest
+    env:
+      CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - name: Install Dependencies
         run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev libwayland-dev
 
-      - name: Publish crates (in dependency order)
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: |
-          # Publish crates in dependency order with delay for index updates
-          echo "Publishing bevy_map_derive..."
-          cargo publish -p bevy_map_derive --no-verify || true
-          sleep 30
+      # Level 0: No internal dependencies
+      - name: Publish bevy_map_derive
+        run: cargo publish -p bevy_map_derive --no-verify
 
-          echo "Publishing bevy_map_animation..."
-          cargo publish -p bevy_map_animation --no-verify || true
-          sleep 30
+      - name: Publish bevy_map_animation
+        run: cargo publish -p bevy_map_animation --no-verify
 
-          echo "Publishing bevy_map_dialogue..."
-          cargo publish -p bevy_map_dialogue --no-verify || true
-          sleep 30
+      - name: Publish bevy_map_dialogue
+        run: cargo publish -p bevy_map_dialogue --no-verify
 
-          echo "Publishing bevy_map_core..."
-          cargo publish -p bevy_map_core --no-verify || true
-          sleep 30
+      - name: Wait for crates.io index update
+        run: sleep 30
 
-          echo "Publishing bevy_map_autotile..."
-          cargo publish -p bevy_map_autotile --no-verify || true
-          sleep 30
+      # Level 1: Depends on animation, dialogue
+      - name: Publish bevy_map_core
+        run: cargo publish -p bevy_map_core --no-verify
 
-          echo "Publishing bevy_map_schema..."
-          cargo publish -p bevy_map_schema --no-verify || true
-          sleep 30
+      - name: Wait for crates.io index update
+        run: sleep 30
 
-          echo "Publishing bevy_map_runtime..."
-          cargo publish -p bevy_map_runtime --no-verify || true
-          sleep 30
+      # Level 2: Depends on core
+      - name: Publish bevy_map_autotile
+        run: cargo publish -p bevy_map_autotile --no-verify
 
-          echo "Publishing bevy_map..."
-          cargo publish -p bevy_map --no-verify || true
-          sleep 30
+      - name: Publish bevy_map_schema
+        run: cargo publish -p bevy_map_schema --no-verify
 
-          echo "Publishing bevy_map_editor..."
-          cargo publish -p bevy_map_editor --no-verify || true
+      - name: Wait for crates.io index update
+        run: sleep 30
 
-          echo "All crates published!"
+      # Level 3: Depends on core, autotile, animation, dialogue
+      - name: Publish bevy_map_runtime
+        run: cargo publish -p bevy_map_runtime --no-verify
+
+      - name: Wait for crates.io index update
+        run: sleep 30
+
+      # Level 4: Depends on everything
+      - name: Publish bevy_map_editor
+        run: cargo publish -p bevy_map_editor --no-verify
+
+      - name: Publish bevy_map
+        run: cargo publish -p bevy_map --no-verify
 
   check-if-upload-to-itch-is-configured:
     runs-on: ubuntu-latest
