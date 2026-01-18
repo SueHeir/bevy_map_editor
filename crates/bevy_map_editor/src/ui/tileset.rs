@@ -242,15 +242,16 @@ fn render_multi_image_tileset(
                                             (row + 1) as f32 * uv_tile_height,
                                         );
 
-                                        #[allow(deprecated)]
                                         let response = ui.add(
-                                            egui::ImageButton::new(egui::load::SizedTexture::new(
-                                                tex_id,
-                                                display_size,
-                                            ))
-                                            .uv(egui::Rect::from_min_max(uv_min, uv_max))
+                                            egui::Button::image(
+                                                egui::Image::new(egui::load::SizedTexture::new(
+                                                    tex_id,
+                                                    display_size,
+                                                ))
+                                                .uv(egui::Rect::from_min_max(uv_min, uv_max)),
+                                            )
                                             .frame(false) // Remove button padding
-                                            .rounding(0.0),
+                                            .corner_radius(0.0),
                                         );
 
                                         // Draw selection and random paint borders
@@ -494,12 +495,13 @@ fn render_tileset_tiles(
                     (row + 1) as f32 * uv_tile_height,
                 );
 
-                #[allow(deprecated)]
                 let response = ui.add(
-                    egui::ImageButton::new(egui::load::SizedTexture::new(texture_id, display_size))
-                        .uv(egui::Rect::from_min_max(uv_min, uv_max))
-                        .frame(false) // Remove button padding
-                        .rounding(0.0),
+                    egui::Button::image(
+                        egui::Image::new(egui::load::SizedTexture::new(texture_id, display_size))
+                            .uv(egui::Rect::from_min_max(uv_min, uv_max)),
+                    )
+                    .frame(false) // Remove button padding
+                    .corner_radius(0.0),
                 );
 
                 // Draw selection border manually (doesn't obscure content)

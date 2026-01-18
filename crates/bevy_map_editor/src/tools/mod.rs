@@ -2,6 +2,7 @@
 //!
 //! Handles viewport input for various editing operations.
 
+use bevy::ecs::message::MessageReader;
 use bevy::input::mouse::MouseWheel;
 use bevy::prelude::*;
 use bevy_egui::EguiContexts;
@@ -767,11 +768,10 @@ fn get_tile_size(editor_state: &EditorState, project: &Project) -> f32 {
 }
 
 /// System to handle zoom input
-#[allow(deprecated)] // EventReader is deprecated but still works in Bevy 0.17
 fn handle_zoom_input(
     mut contexts: EguiContexts,
     mut editor_state: ResMut<EditorState>,
-    mut scroll_events: bevy::ecs::event::EventReader<MouseWheel>,
+    mut scroll_events: MessageReader<MouseWheel>,
     windows: Query<&Window>,
 ) {
     let Ok(ctx) = contexts.ctx_mut() else { return };

@@ -27,6 +27,7 @@
 
 use bevy::asset::io::Reader;
 use bevy::asset::{AssetLoader, LoadContext};
+use bevy::reflect::TypePath;
 use bevy_map_core::{EditorProject, MapProject};
 use thiserror::Error;
 
@@ -46,7 +47,7 @@ pub enum MapLoadError {
 /// Supports `.map.json` file extension. The loader parses the JSON and returns
 /// a `MapProject` asset that can be used with `SpawnMapCommand` or the
 /// `handle_map_spawning` system.
-#[derive(Default)]
+#[derive(Default, TypePath)]
 pub struct MapProjectLoader;
 
 impl AssetLoader for MapProjectLoader {

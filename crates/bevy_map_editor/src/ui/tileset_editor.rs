@@ -1681,15 +1681,16 @@ fn render_tile_selector_for_properties(
                                 (row + 1) as f32 * uv_tile_height,
                             );
 
-                            #[allow(deprecated)]
                             ui.add(
-                                egui::ImageButton::new(egui::load::SizedTexture::new(
-                                    tex_id,
-                                    display_size,
-                                ))
-                                .uv(egui::Rect::from_min_max(uv_min, uv_max))
+                                egui::Button::image(
+                                    egui::Image::new(egui::load::SizedTexture::new(
+                                        tex_id,
+                                        display_size,
+                                    ))
+                                    .uv(egui::Rect::from_min_max(uv_min, uv_max)),
+                                )
                                 .frame(false) // Remove button padding
-                                .rounding(0.0),
+                                .corner_radius(0.0),
                             )
                         } else {
                             ui.add(

@@ -41,11 +41,11 @@ serde_json = "1.0"
 # Core utilities
 uuid = { version = "1.0", features = ["v4", "serde"] }
 
-# Bevy ecosystem (0.17 compatible)
-bevy = "0.17"
-bevy_ecs_tilemap = "0.17"
-bevy_egui = "0.38"
-avian2d = "0.4"
+# Bevy ecosystem (0.18 compatible)
+bevy = "0.18"
+bevy_ecs_tilemap = "0.18"
+bevy_egui = "0.39"
+avian2d = "0.5"
 
 # Platform-specific
 rfd = "0.15"
