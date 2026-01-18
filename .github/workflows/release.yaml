@@ -17,8 +17,19 @@ env:
 
 jobs:
 
+  # Create GitHub release with auto-generated notes
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create ${{ github.ref_name }} --generate-notes --draft=false
+
   # Build for Linux
   release-linux:
+    needs: create-release
     runs-on: ubuntu-latest
 
     steps:
@@ -68,6 +79,7 @@ jobs:
 
   # Build for Windows
   release-windows:
+    needs: create-release
     runs-on: windows-latest
 
     steps:
@@ -114,6 +126,7 @@ jobs:
 
   # Build for MacOS x86_64
   release-macOS-intel:
+    needs: create-release
     runs-on: macOS-latest
 
     steps:
@@ -160,6 +173,7 @@ jobs:
 
   # Build for MacOS Apple Silicon
   release-macOS-apple-silicon:
+    needs: create-release
     runs-on: macOS-latest
 
     steps:
@@ -205,6 +219,7 @@ jobs:
 
   # Publish to crates.io
   publish-crates:
+    needs: create-release
     name: Publish to crates.io
     runs-on: ubuntu-latest
     env:
