@@ -70,6 +70,8 @@ pub struct GameSettingsDialogResult {
     pub save_requested: bool,
     /// User wants to create a new game project
     pub create_project_requested: bool,
+    /// User wants to create a new level
+    pub create_level_requested: bool,
     /// User wants to install Bevy CLI
     pub install_cli_requested: bool,
 }
@@ -203,6 +205,8 @@ pub fn render_game_settings_dialog(
                             }
                         }
                     });
+
+                result.create_level_requested = ui.button("+").clicked();
             });
 
             ui.add_space(8.0);
