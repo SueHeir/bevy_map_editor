@@ -1,12 +1,12 @@
 # bevy_map_runtime
 
-Runtime map loading and rendering for Bevy 0.17 using bevy_ecs_tilemap.
+Runtime map loading and rendering for Bevy 0.18 using bevy_ecs_tilemap.
 
 Part of [bevy_map_editor](https://github.com/jbuehler23/bevy_map_editor).
 
 ## Features
 
-- Efficient tilemap rendering via bevy_ecs_tilemap 0.17
+- Efficient tilemap rendering via bevy_ecs_tilemap 0.18
 - Asset-based map loading with hot reload support
 - Custom entity spawning with `#[derive(MapEntity)]`
 - Autoloading for animations and dialogues

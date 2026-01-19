@@ -1152,7 +1152,7 @@ fn render_ui(
                     ui.painter()
                         .rect_filled(rect, 0.0, egui::Color32::from_rgb(30, 30, 35));
 
-                    let world_result = render_world_view(ui, &mut editor_state, &mut project);
+                    let world_result = render_world_view(ui, &mut editor_state, &mut project, &preferences);
 
                     // Handle world view results
                     if let Some(level_id) = world_result.open_level {

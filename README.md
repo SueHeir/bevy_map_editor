@@ -1,6 +1,6 @@
 # bevy_map_editor
 
-A complete 2D tilemap editing ecosystem for Bevy 0.17. Create maps in the editor, load them at runtime with one line of code. For more 
+A complete 2D tilemap editing ecosystem for Bevy 0.18. Create maps in the editor, load them at runtime with one line of code. For more 
 complex asset loading, you can specify when to load those as well for more control.
 
 ![Editor Screenshot](docs/images/editor_screenshot.png)
@@ -10,7 +10,7 @@ complex asset loading, you can specify when to load those as well for more contr
 - **Visual Map Editor** - egui-based editor with layer system, terrain painting, and entity placement
 - **Project Management** - Recent projects, preferences persistence, auto-open last project
 - **Autotiling** - Corner, Edge, and Mixed terrain modes using Wang tiles, currently WIP
-- **Runtime Loading** - Efficient tilemap rendering via bevy_ecs_tilemap 0.17
+- **Runtime Loading** - Efficient tilemap rendering via bevy_ecs_tilemap 0.18
 - **Custom Entities** - Define game objects with `#[derive(MapEntity)]` proc macro
 - **Sprite Animations** - Define sprite sheets with named animations, autoloaded at runtime
 - **Dialogue Trees** - Visual node-based dialogue editor with branching conversations
@@ -147,7 +147,7 @@ Add `bevy_map` to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-bevy = "0.17"
+bevy = "0.18"
 bevy_map = "0.1"
 
 # With physics (Avian2D collisions)
@@ -273,9 +273,9 @@ Maps are saved as `.map.json` files [see example full-project JSON](examples/ass
 
 | Dependency       | Version |
 |------------------|---------|
-| Bevy             | 0.17    |
-| bevy_ecs_tilemap | 0.17    |
-| bevy_egui        | 0.38    |
+| Bevy             | 0.18    |
+| bevy_ecs_tilemap | 0.18    |
+| bevy_egui        | 0.39    |
 | Rust             | 1.76+   |
 
 ## License

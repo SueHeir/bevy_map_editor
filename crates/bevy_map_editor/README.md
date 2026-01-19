@@ -1,6 +1,6 @@
 # bevy_map_editor
 
-Visual map editor for Bevy 0.17 games. Create tilemaps, place entities, design dialogue trees, and define animations.
+Visual map editor for Bevy 0.18 games. Create tilemaps, place entities, design dialogue trees, and define animations.
 
 Part of [bevy_map_editor](https://github.com/jbuehler23/bevy_map_editor).
 

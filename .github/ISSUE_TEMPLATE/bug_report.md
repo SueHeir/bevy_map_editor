@@ -34,7 +34,7 @@ If applicable, add screenshots to help explain the problem.
 - **OS**: [e.g., Windows 11, macOS 14, Ubuntu 24.04]
 - **Rust Version**: [e.g., 1.76.0]
 - **bevy_map_editor Version**: [e.g., 0.2.0]
-- **Bevy Version**: [e.g., 0.17]
+- **Bevy Version**: [e.g., 0.18]
 
 ## Additional Context
 

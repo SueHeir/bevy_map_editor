@@ -52,6 +52,10 @@ pub struct EditorPreferences {
 
     // Theme settings
     pub theme: ThemeSettings,
+
+    // Input settings
+    /// Trackpad mode: swap scroll behavior (scroll = pan, Ctrl+scroll = zoom)
+    pub trackpad_mode: bool,
 }
 
 /// A recent project entry
@@ -87,6 +91,7 @@ impl Default for EditorPreferences {
             auto_open_last_project: false,
             keybindings: HashMap::new(),
             theme: ThemeSettings::default(),
+            trackpad_mode: false,
         }
     }
 }

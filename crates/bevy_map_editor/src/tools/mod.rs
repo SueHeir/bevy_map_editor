@@ -13,6 +13,7 @@ use std::collections::HashMap;
 use crate::commands::{
     collect_tiles_in_region, BatchTileCommand, CommandHistory, MoveEntityCommand,
 };
+use crate::preferences::EditorPreferences;
 use crate::project::Project;
 use crate::render::RenderState;
 use crate::ui::{EditorTool, Selection, ToolMode};
@@ -767,12 +768,14 @@ fn get_tile_size(editor_state: &EditorState, project: &Project) -> f32 {
         .unwrap_or(32.0)
 }
 
-/// System to handle zoom input
+/// System to handle zoom input (scroll wheel and keyboard +/-)
 fn handle_zoom_input(
     mut contexts: EguiContexts,
     mut editor_state: ResMut<EditorState>,
     mut scroll_events: MessageReader<MouseWheel>,
     windows: Query<&Window>,
+    keyboard: Res<ButtonInput<KeyCode>>,
+    preferences: Res<EditorPreferences>,
 ) {
     let Ok(ctx) = contexts.ctx_mut() else { return };
     let Ok(window) = windows.single() else { return };
@@ -799,13 +802,42 @@ fn handle_zoom_input(
         || editor_state.show_dialogue_editor
         || editor_state.show_settings_dialog;
 
+    // Check if Ctrl/Cmd is pressed (for trackpad mode zoom)
+    let ctrl_pressed =
+        keyboard.pressed(KeyCode::ControlLeft) || keyboard.pressed(KeyCode::ControlRight);
+
+    // Keyboard zoom shortcuts: + (or =) to zoom in, - to zoom out
+    // These work regardless of trackpad mode
+    if !modal_editor_open && !ctx.wants_keyboard_input() {
+        if keyboard.just_pressed(KeyCode::Equal) || keyboard.just_pressed(KeyCode::NumpadAdd) {
+            editor_state.zoom = (editor_state.zoom * 1.25).clamp(0.25, 4.0);
+        }
+        if keyboard.just_pressed(KeyCode::Minus) || keyboard.just_pressed(KeyCode::NumpadSubtract) {
+            editor_state.zoom = (editor_state.zoom * 0.8).clamp(0.25, 4.0);
+        }
+    }
+
     for event in scroll_events.read() {
-        // Skip zoom if egui is using pointer, cursor is over side panels, or modal editors are open
+        // Skip if egui is using pointer, cursor is over side panels, or modal editors are open
         if egui_using_pointer || over_side_panel || modal_editor_open {
             continue;
         }
-        let zoom_delta = event.y * 0.1;
-        editor_state.zoom = (editor_state.zoom * (1.0 + zoom_delta)).clamp(0.25, 4.0);
+
+        if preferences.trackpad_mode {
+            // Trackpad mode: Ctrl+scroll = zoom, scroll alone = pan
+            if ctrl_pressed {
+                let zoom_delta = event.y * 0.1;
+                editor_state.zoom = (editor_state.zoom * (1.0 + zoom_delta)).clamp(0.25, 4.0);
+            } else {
+                // Pan with scroll (trackpad two-finger gesture)
+                editor_state.camera_offset.x -= event.x * 10.0 / editor_state.zoom;
+                editor_state.camera_offset.y += event.y * 10.0 / editor_state.zoom;
+            }
+        } else {
+            // Default mode: scroll = zoom
+            let zoom_delta = event.y * 0.1;
+            editor_state.zoom = (editor_state.zoom * (1.0 + zoom_delta)).clamp(0.25, 4.0);
+        }
     }
 }
 
