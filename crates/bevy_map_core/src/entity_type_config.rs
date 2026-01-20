@@ -207,6 +207,26 @@ impl Default for PhysicsConfig {
     }
 }
 
+impl PhysicsConfig {
+    /// Create a new PhysicsConfig with instance-level overrides applied
+    ///
+    /// This merges override values on top of the base config, returning
+    /// a new config with the merged values.
+    pub fn with_overrides(&self, overrides: &crate::PhysicsOverrides) -> PhysicsConfig {
+        PhysicsConfig {
+            // Overridable fields
+            gravity_scale: overrides.gravity_scale.unwrap_or(self.gravity_scale),
+            friction: overrides.friction.unwrap_or(self.friction),
+            restitution: overrides.restitution.unwrap_or(self.restitution),
+            linear_damping: overrides.linear_damping.unwrap_or(self.linear_damping),
+            // Non-overridable fields (copy from type config)
+            body_type: self.body_type,
+            collider: self.collider.clone(),
+            lock_rotation: self.lock_rotation,
+        }
+    }
+}
+
 // ============================================================================
 // Input Configuration
 // ============================================================================
@@ -339,6 +359,23 @@ impl InputConfig {
             deceleration: 0.0,
         }
     }
+
+    /// Create a new InputConfig with instance-level overrides applied
+    ///
+    /// This merges override values on top of the base config, returning
+    /// a new config with the merged values.
+    pub fn with_overrides(&self, overrides: &crate::InputOverrides) -> InputConfig {
+        InputConfig {
+            // Overridable fields
+            speed: overrides.speed.unwrap_or(self.speed),
+            jump_force: overrides.jump_force.or(self.jump_force),
+            acceleration: overrides.acceleration.unwrap_or(self.acceleration),
+            deceleration: overrides.deceleration.unwrap_or(self.deceleration),
+            max_fall_speed: overrides.max_fall_speed.or(self.max_fall_speed),
+            // Non-overridable fields (copy from type config)
+            profile: self.profile.clone(),
+        }
+    }
 }
 
 // ============================================================================
@@ -395,6 +432,25 @@ impl SpriteConfig {
     pub fn with_scale(mut self, scale: f32) -> Self {
         self.scale = Some(scale);
         self
+    }
+
+    /// Create a new SpriteConfig with instance-level overrides applied
+    ///
+    /// This merges override values on top of the base config, returning
+    /// a new config with the merged values.
+    pub fn with_overrides(&self, overrides: &crate::SpriteOverrides) -> SpriteConfig {
+        SpriteConfig {
+            // Overridable fields
+            scale: overrides.scale.or(self.scale),
+            default_animation: overrides
+                .default_animation
+                .clone()
+                .or_else(|| self.default_animation.clone()),
+            // Non-overridable fields (copy from type config)
+            sprite_sheet_id: self.sprite_sheet_id,
+            offset: self.offset,
+            flip_with_direction: self.flip_with_direction,
+        }
     }
 }
 

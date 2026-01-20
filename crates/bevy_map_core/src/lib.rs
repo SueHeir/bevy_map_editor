@@ -20,7 +20,9 @@ mod value;
 mod world;
 
 pub use collision::{CollisionData, CollisionShape, OneWayDirection, PhysicsBody};
-pub use entity::EntityInstance;
+pub use entity::{
+    ComponentOverrides, EntityInstance, InputOverrides, PhysicsOverrides, SpriteOverrides,
+};
 pub use entity_type_config::{
     ColliderConfig, EntityTypeConfig, InputConfig, InputProfile, PhysicsBodyType, PhysicsConfig,
     SpriteConfig,

@@ -22,7 +22,7 @@
 //! 2. If a `SpriteConfig` is defined with a sprite_sheet_id, loads and spawns the sprite
 //! 3. If animations are defined, auto-plays the default animation
 
-use crate::entity_registry::MapEntityMarker;
+use crate::entity_registry::{EntityProperties, MapEntityMarker};
 use crate::MapRoot;
 use bevy::prelude::*;
 use bevy_map_animation::{AnimatedSprite, SpriteData};
@@ -79,7 +79,7 @@ fn spawn_entity_sprites(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     entity_query: Query<
-        (Entity, &MapEntityMarker),
+        (Entity, &MapEntityMarker, Option<&EntityProperties>),
         (
             Added<MapEntityMarker>,
             Without<EntitySpriteSetup>,
@@ -98,16 +98,30 @@ fn spawn_entity_sprites(
         return;
     };
 
-    for (entity, marker) in entity_query.iter() {
+    for (entity, marker, entity_props) in entity_query.iter() {
         // Look up the type config for this entity
         let Some(type_config) = project.get_entity_type_config(&marker.type_name) else {
             continue;
         };
 
         // Check if sprite is configured
-        let Some(sprite_config) = &type_config.sprite else {
+        let Some(base_sprite_config) = &type_config.sprite else {
             continue;
         };
+
+        // Apply instance-level overrides if available
+        let sprite_config: SpriteConfig = if let Some(props) = entity_props {
+            if let Some(ref sprite_overrides) = props.component_overrides.sprite {
+                base_sprite_config.with_overrides(sprite_overrides)
+            } else {
+                base_sprite_config.clone()
+            }
+        } else {
+            base_sprite_config.clone()
+        };
+
+        // Use the merged sprite config (shadowing for cleaner code below)
+        let sprite_config = &sprite_config;
 
         // Need a sprite sheet ID
         let Some(sprite_sheet_id) = sprite_config.sprite_sheet_id else {
