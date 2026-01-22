@@ -1,13 +1,14 @@
 //! Game project settings dialog
 //!
 //! This dialog allows users to configure the associated game project,
-//! including the project path, starting level, and build options.
+//! including the project path, starting level, build options, and code generation.
 
 use bevy_egui::egui;
 use std::path::PathBuf;
 use uuid::Uuid;
 
 use crate::bevy_cli;
+use crate::external_editor::{self, PreferredEditor};
 use crate::project::Project;
 
 /// State for the game settings dialog
@@ -25,6 +26,22 @@ pub struct GameSettingsDialogState {
     pub status_message: Option<String>,
     /// Whether Bevy CLI is installed (cached)
     pub cli_installed: Option<bool>,
+
+    // Code generation settings
+    /// Whether code generation is enabled
+    pub enable_codegen: bool,
+    /// Output path for generated code
+    pub codegen_output_path: String,
+    /// Whether to generate entity structs
+    pub generate_entities: bool,
+    /// Whether to generate stub systems
+    pub generate_stubs: bool,
+    /// Whether to generate behavior systems
+    pub generate_behaviors: bool,
+    /// Whether to generate enums
+    pub generate_enums: bool,
+    /// Preferred external editor
+    pub preferred_editor: PreferredEditor,
 }
 
 impl GameSettingsDialogState {
@@ -39,6 +56,17 @@ impl GameSettingsDialogState {
         self.selected_starting_level = project.game_config.starting_level;
         self.use_release_build = project.game_config.use_release_build;
         self.status_message = None;
+
+        // Load codegen settings
+        self.enable_codegen = project.game_config.enable_codegen;
+        self.codegen_output_path = project.game_config.codegen_output_path.clone();
+        self.generate_entities = project.game_config.generate_entities;
+        self.generate_stubs = project.game_config.generate_stubs;
+        self.generate_behaviors = project.game_config.generate_behaviors;
+        self.generate_enums = project.game_config.generate_enums;
+
+        // Detect preferred editor
+        self.preferred_editor = external_editor::detect_best_editor();
     }
 
     /// Check and cache CLI installation status
@@ -74,6 +102,12 @@ pub struct GameSettingsDialogResult {
     pub create_level_requested: bool,
     /// User wants to install Bevy CLI
     pub install_cli_requested: bool,
+    /// User wants to generate code now
+    pub generate_code_requested: bool,
+    /// User wants to preview generated code
+    pub preview_code_requested: bool,
+    /// User wants to open game project in external editor
+    pub open_in_editor_requested: bool,
 }
 
 /// Render the game settings dialog
@@ -217,6 +251,83 @@ pub fn render_game_settings_dialog(
                 "Use release build (slower to compile, faster to run)",
             );
 
+            ui.add_space(12.0);
+            ui.separator();
+            ui.add_space(4.0);
+
+            // Code Generation Section
+            ui.heading("Code Generation");
+            ui.add_space(4.0);
+
+            ui.checkbox(&mut state.enable_codegen, "Auto-generate code on save");
+
+            ui.add_enabled_ui(state.enable_codegen, |ui| {
+                ui.indent("codegen_options", |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label("Output path:");
+                        ui.add(
+                            egui::TextEdit::singleline(&mut state.codegen_output_path)
+                                .desired_width(200.0)
+                                .hint_text("src/generated"),
+                        );
+                    });
+
+                    ui.add_space(4.0);
+                    ui.label("Generate:");
+                    ui.checkbox(&mut state.generate_entities, "Entity structs");
+                    ui.checkbox(&mut state.generate_enums, "Enum definitions");
+                    ui.checkbox(&mut state.generate_stubs, "Behavior stubs");
+                    ui.checkbox(
+                        &mut state.generate_behaviors,
+                        "Movement systems (from Input profiles)",
+                    );
+                });
+
+                ui.add_space(8.0);
+
+                ui.horizontal(|ui| {
+                    if ui.button("Generate Now").clicked() {
+                        result.generate_code_requested = true;
+                    }
+                    if ui.button("Preview Code...").clicked() {
+                        result.preview_code_requested = true;
+                    }
+                });
+            });
+
+            ui.add_space(8.0);
+
+            // External editor section
+            ui.horizontal(|ui| {
+                ui.label("External Editor:");
+                egui::ComboBox::from_id_salt("preferred_editor")
+                    .selected_text(state.preferred_editor.display_name())
+                    .show_ui(ui, |ui| {
+                        for editor in PreferredEditor::all() {
+                            let label = if editor.is_available() {
+                                editor.display_name().to_string()
+                            } else {
+                                format!("{} (not installed)", editor.display_name())
+                            };
+                            if ui
+                                .selectable_label(state.preferred_editor == *editor, label)
+                                .clicked()
+                            {
+                                state.preferred_editor = *editor;
+                            }
+                        }
+                    });
+
+                ui.add_enabled_ui(
+                    project_exists && state.preferred_editor.is_available(),
+                    |ui| {
+                        if ui.button("Open in Editor").clicked() {
+                            result.open_in_editor_requested = true;
+                        }
+                    },
+                );
+            });
+
             // Status message
             if let Some(msg) = &state.status_message {
                 ui.separator();
@@ -252,6 +363,16 @@ pub fn render_game_settings_dialog(
                                 Some(PathBuf::from(&state.project_path_input));
                             project.game_config.starting_level = state.selected_starting_level;
                             project.game_config.use_release_build = state.use_release_build;
+
+                            // Save codegen settings
+                            project.game_config.enable_codegen = state.enable_codegen;
+                            project.game_config.codegen_output_path =
+                                state.codegen_output_path.clone();
+                            project.game_config.generate_entities = state.generate_entities;
+                            project.game_config.generate_stubs = state.generate_stubs;
+                            project.game_config.generate_behaviors = state.generate_behaviors;
+                            project.game_config.generate_enums = state.generate_enums;
+
                             project.mark_dirty();
 
                             result.save_requested = true;

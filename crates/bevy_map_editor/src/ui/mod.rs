@@ -4,6 +4,7 @@
 
 mod animation_editor;
 mod asset_browser;
+mod code_preview_dialog;
 mod dialogs;
 mod dialogue_editor;
 mod entity_palette;
@@ -25,6 +26,7 @@ mod world_view;
 
 pub use animation_editor::{render_animation_editor, AnimationEditorResult, AnimationEditorState};
 pub use asset_browser::{render_asset_browser, AssetBrowserResult, AssetBrowserState};
+pub use code_preview_dialog::{render_code_preview_dialog, CodePreviewDialogState, CodePreviewTab};
 pub use dialogs::*;
 pub use dialogue_editor::{render_dialogue_editor, DialogueEditorResult, DialogueEditorState};
 pub use entity_palette::{render_entity_palette, EntityPaintState};
@@ -1377,6 +1379,18 @@ fn render_ui(
     if game_settings_result.create_level_requested {
         editor_state.show_new_level_dialog = true;
     }
+    if game_settings_result.generate_code_requested {
+        editor_state.pending_action = Some(PendingAction::GenerateCode);
+    }
+    if game_settings_result.preview_code_requested {
+        editor_state.pending_action = Some(PendingAction::PreviewCode);
+    }
+    if game_settings_result.open_in_editor_requested {
+        editor_state.pending_action = Some(PendingAction::OpenGameProject);
+    }
+
+    // Code preview dialog
+    code_preview_dialog::render_code_preview_dialog(ctx, &mut editor_state.code_preview_dialog);
 
     // Build progress dialog (shown during game build)
     let build_progress_result = render_build_progress(ctx, &mut editor_state);
@@ -1600,6 +1614,15 @@ fn process_edit_actions(
             }
             PendingAction::InstallBevyCli => {
                 handle_install_bevy_cli(&mut editor_state);
+            }
+            PendingAction::GenerateCode => {
+                handle_generate_code(&mut editor_state, &mut project);
+            }
+            PendingAction::PreviewCode => {
+                handle_preview_code(&mut editor_state, &project);
+            }
+            PendingAction::OpenGameProject => {
+                handle_open_game_project(&mut editor_state, &project);
             }
             // File operations are handled in dialogs.rs
             _ => {
@@ -2115,6 +2138,97 @@ fn handle_install_bevy_cli(editor_state: &mut EditorState) {
             editor_state.error_message = Some(format!("Failed to install Bevy CLI: {}", e));
             editor_state.game_settings_dialog.cli_installed = Some(false);
         }
+    }
+}
+
+/// Handle the "Generate Code" action
+fn handle_generate_code(editor_state: &mut EditorState, project: &mut Project) {
+    use bevy_map_codegen::{generate_all, CodegenConfig};
+
+    let Some(game_path) = &project.game_config.project_path else {
+        editor_state.error_message =
+            Some("Game project not configured. Go to Project > Game Settings.".to_string());
+        return;
+    };
+
+    let output_dir = game_path.join(&project.game_config.codegen_output_path);
+    let config = CodegenConfig {
+        output_dir: output_dir.clone(),
+        generate_entities: project.game_config.generate_entities,
+        generate_enums: project.game_config.generate_enums,
+        generate_stubs: project.game_config.generate_stubs,
+        generate_behaviors: project.game_config.generate_behaviors,
+        generate_health: false,
+        generate_patrol: false,
+    };
+
+    match generate_all(&project.schema, &project.entity_type_configs, &config) {
+        Ok(result) => {
+            editor_state.game_settings_dialog.status_message = Some(format!(
+                "Generated {} files to {:?}",
+                result.generated_files.len(),
+                output_dir
+            ));
+            bevy::log::info!(
+                "Code generation successful: {} files",
+                result.generated_files.len()
+            );
+        }
+        Err(e) => {
+            editor_state.error_message = Some(format!("Code generation failed: {}", e));
+        }
+    }
+}
+
+/// Handle the "Preview Code" action
+fn handle_preview_code(editor_state: &mut EditorState, project: &Project) {
+    use bevy_map_codegen::generator::{
+        preview_behaviors, preview_entities, preview_enums, preview_stubs,
+    };
+
+    // Generate preview for each tab
+    let entities = match preview_entities(&project.schema) {
+        Ok(code) => code,
+        Err(e) => format!("// Error generating entities: {}", e),
+    };
+
+    let enums = match preview_enums(&project.schema) {
+        Ok(code) => code,
+        Err(e) => format!("// Error generating enums: {}", e),
+    };
+
+    let stubs = match preview_stubs(&project.schema) {
+        Ok(code) => code,
+        Err(e) => format!("// Error generating stubs: {}", e),
+    };
+
+    let behaviors = match preview_behaviors(&project.schema, &project.entity_type_configs) {
+        Ok(code) => code,
+        Err(e) => format!("// Error generating behaviors: {}", e),
+    };
+
+    editor_state
+        .code_preview_dialog
+        .set_content(entities, enums, stubs, behaviors);
+    editor_state.code_preview_dialog.open = true;
+}
+
+/// Handle the "Open Game Project" action
+fn handle_open_game_project(editor_state: &mut EditorState, project: &Project) {
+    let Some(game_path) = &project.game_config.project_path else {
+        editor_state.error_message = Some("Game project not configured.".to_string());
+        return;
+    };
+
+    if !game_path.exists() {
+        editor_state.error_message =
+            Some(format!("Game project path does not exist: {:?}", game_path));
+        return;
+    }
+
+    let preferred = editor_state.game_settings_dialog.preferred_editor;
+    if let Err(e) = preferred.open(game_path) {
+        editor_state.error_message = Some(format!("Failed to open editor: {}", e));
     }
 }
 

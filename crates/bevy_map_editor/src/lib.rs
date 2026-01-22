@@ -25,6 +25,7 @@
 
 pub mod bevy_cli;
 pub mod commands;
+pub mod external_editor;
 pub mod game_runner;
 pub mod preferences;
 pub mod project;
@@ -51,9 +52,9 @@ use project::Project;
 use render::MapRenderPlugin;
 use tools::EditorToolsPlugin;
 use ui::{
-    AnimationEditorState, DialogueEditorState, EditorTool, EditorUiPlugin, EntityPaintState,
-    GameSettingsDialogState, PendingAction, SchemaEditorState, Selection, SpriteSheetEditorState,
-    TerrainPaintState, TilesetEditorState, ToolMode,
+    AnimationEditorState, CodePreviewDialogState, DialogueEditorState, EditorTool, EditorUiPlugin,
+    EntityPaintState, GameSettingsDialogState, PendingAction, SchemaEditorState, Selection,
+    SpriteSheetEditorState, TerrainPaintState, TilesetEditorState, ToolMode,
 };
 
 /// Error types for asset path handling
@@ -681,6 +682,8 @@ pub struct EditorState {
     // Game project settings
     /// State for the game settings dialog
     pub game_settings_dialog: GameSettingsDialogState,
+    /// State for the code preview dialog
+    pub code_preview_dialog: CodePreviewDialogState,
     /// Running game process (if any)
     pub running_game: Option<std::process::Child>,
 
@@ -819,6 +822,7 @@ impl Default for EditorState {
             world_new_level_height: 50,
 
             game_settings_dialog: GameSettingsDialogState::default(),
+            code_preview_dialog: CodePreviewDialogState::default(),
             running_game: None,
 
             game_build_state: GameBuildState::default(),

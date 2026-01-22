@@ -1423,7 +1423,7 @@ fn render_sprite_overrides(
 fn render_override_field_f32(
     ui: &mut egui::Ui,
     label: &str,
-    _id: &str,
+    id: &str,
     value: &mut Option<f32>,
     default: f32,
     speed: f32,
@@ -1439,14 +1439,18 @@ fn render_override_field_f32(
             ui.colored_label(egui::Color32::YELLOW, "*");
         }
 
-        // Value editor
+        // Value editor - use push_id for stable ID to maintain focus while editing
         let mut edit_val = current;
-        let response = ui.add(
-            egui::DragValue::new(&mut edit_val)
-                .speed(speed)
-                .min_decimals(1)
-                .max_decimals(2),
-        );
+        let response = ui
+            .push_id(id, |ui| {
+                ui.add(
+                    egui::DragValue::new(&mut edit_val)
+                        .speed(speed)
+                        .min_decimals(1)
+                        .max_decimals(2),
+                )
+            })
+            .inner;
 
         if response.changed() {
             // If value changed, set the override
@@ -1477,11 +1481,11 @@ fn render_override_field_f32(
 fn render_override_field_f32_opt(
     ui: &mut egui::Ui,
     label: &str,
-    _id: &str,
+    id: &str,
     value: &mut Option<f32>,
     default: f32,
     speed: f32,
 ) {
     // Same as render_override_field_f32 for now
-    render_override_field_f32(ui, label, _id, value, default, speed);
+    render_override_field_f32(ui, label, id, value, default, speed);
 }

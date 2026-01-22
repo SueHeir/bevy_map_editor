@@ -69,6 +69,34 @@ pub struct GameProjectConfig {
     pub project_name: String,
     /// Whether to use release mode when building
     pub use_release_build: bool,
+
+    // Code generation settings (disabled by default - opt-in)
+    /// Whether to enable automatic code generation on save
+    #[serde(default)]
+    pub enable_codegen: bool,
+    /// Output path for generated code relative to project root (default: "src/generated")
+    #[serde(default = "default_codegen_output_path")]
+    pub codegen_output_path: String,
+    /// Whether to generate entity structs
+    #[serde(default = "default_true")]
+    pub generate_entities: bool,
+    /// Whether to generate stub systems
+    #[serde(default = "default_true")]
+    pub generate_stubs: bool,
+    /// Whether to generate behavior systems based on input profiles
+    #[serde(default = "default_true")]
+    pub generate_behaviors: bool,
+    /// Whether to generate enum definitions
+    #[serde(default = "default_true")]
+    pub generate_enums: bool,
+}
+
+fn default_codegen_output_path() -> String {
+    "src/generated".to_string()
+}
+
+fn default_true() -> bool {
+    true
 }
 
 /// The entire editor project

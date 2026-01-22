@@ -10,7 +10,7 @@ use bevy_egui::egui;
 use bevy_map_core::{
     ColliderConfig, InputConfig, InputProfile, PhysicsBodyType, PhysicsConfig, SpriteConfig,
 };
-use bevy_map_schema::{PropType, PropertyDef, TypeDef};
+use bevy_map_schema::{PropType, PropertyDef, TypeDef, ViewportDisplayMode};
 
 /// State for the schema editor
 #[derive(Default)]
@@ -441,13 +441,20 @@ fn render_type_editor(
     ui.separator();
 
     // Read current values for display
-    let (current_placeable, current_color, current_icon, current_marker_size) = {
+    let (
+        current_placeable,
+        current_color,
+        current_icon,
+        current_marker_size,
+        current_viewport_display,
+    ) = {
         let type_def = project.schema.data_types.get(type_name).unwrap();
         (
             type_def.placeable,
             type_def.color.clone(),
             type_def.icon.clone(),
             type_def.marker_size,
+            type_def.viewport_display,
         )
     };
 
@@ -456,6 +463,7 @@ fn render_type_editor(
     let mut new_color = parse_color_rgb(&current_color);
     let mut new_icon = current_icon.clone().unwrap_or_default();
     let mut new_marker_size = current_marker_size.unwrap_or(16) as i32;
+    let mut new_viewport_display = current_viewport_display;
     let mut settings_changed = false;
 
     egui::CollapsingHeader::new("Settings")
@@ -489,6 +497,48 @@ fn render_type_editor(
                         {
                             settings_changed = true;
                         }
+                        ui.end_row();
+
+                        // Viewport Display Mode
+                        ui.label("Viewport Display:");
+                        egui::ComboBox::from_id_salt(format!("viewport_display_{}", type_name))
+                            .selected_text(match new_viewport_display {
+                                ViewportDisplayMode::ColoredSquare => "Colored Square",
+                                ViewportDisplayMode::Icon => "Icon",
+                                ViewportDisplayMode::Sprite => "Sprite (First Frame)",
+                            })
+                            .show_ui(ui, |ui| {
+                                if ui
+                                    .selectable_value(
+                                        &mut new_viewport_display,
+                                        ViewportDisplayMode::ColoredSquare,
+                                        "Colored Square",
+                                    )
+                                    .changed()
+                                {
+                                    settings_changed = true;
+                                }
+                                if ui
+                                    .selectable_value(
+                                        &mut new_viewport_display,
+                                        ViewportDisplayMode::Icon,
+                                        "Icon",
+                                    )
+                                    .changed()
+                                {
+                                    settings_changed = true;
+                                }
+                                if ui
+                                    .selectable_value(
+                                        &mut new_viewport_display,
+                                        ViewportDisplayMode::Sprite,
+                                        "Sprite (First Frame)",
+                                    )
+                                    .changed()
+                                {
+                                    settings_changed = true;
+                                }
+                            });
                         ui.end_row();
                     }
 
@@ -539,6 +589,11 @@ fn render_type_editor(
                 Some(new_marker_size as u32)
             } else {
                 None
+            };
+            type_def.viewport_display = if new_placeable {
+                new_viewport_display
+            } else {
+                ViewportDisplayMode::ColoredSquare
             };
             type_def.color = format!(
                 "#{:02x}{:02x}{:02x}",

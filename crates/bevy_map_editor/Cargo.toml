@@ -20,6 +20,7 @@ bevy_map_autotile = { workspace = true }
 bevy_map_schema = { workspace = true }
 bevy_map_animation = { workspace = true }
 bevy_map_dialogue = { workspace = true }
+bevy_map_codegen = { workspace = true }
 bevy_map_runtime = { workspace = true, optional = true }
 bevy = { workspace = true }
 bevy_ecs_tilemap = { workspace = true }
