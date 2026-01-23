@@ -7796,7 +7796,7 @@
   },
   "stamps": [],
   "game_config": {
-    "project_path": "C:\\Dev\\Workspace\\map_editor_test\\platformer_example",
+    "project_path": "C:\\Dev\\Workspace\\bevy_map_editor\\examples\\platformer_example",
     "starting_level": "cccb7a74-fac8-4062-a2be-901e87a5352f",
     "project_name": "platformer_example",
     "use_release_build": false,

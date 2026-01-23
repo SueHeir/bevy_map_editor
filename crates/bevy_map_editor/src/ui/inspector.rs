@@ -2,6 +2,10 @@
 
 use bevy_egui::egui;
 use bevy_map_animation::SpriteData;
+use bevy_map_core::{
+    ComponentOverrides, EntityTypeConfig, InputConfig, InputOverrides, PhysicsConfig,
+    PhysicsOverrides, SpriteConfig, SpriteOverrides,
+};
 use uuid::Uuid;
 
 use crate::project::Project;
@@ -159,8 +163,17 @@ fn render_entity_inspector(
 ) -> bool {
     let mut should_delete = false;
 
-    // Phase 1: Extract read-only schema data before mutable borrow
-    let (type_name, type_def, enums, sprite_sheets, dialogue_options, ref_options) = {
+    // Phase 1: Extract read-only schema data and entity type config before mutable borrow
+    let (
+        type_name,
+        type_def,
+        entity_type_config,
+        enums,
+        sprite_sheets,
+        dialogue_options,
+        ref_options,
+        animation_names,
+    ) = {
         let Some(level) = project.get_level(level_id) else {
             ui.label("Level not found");
             return false;
@@ -172,6 +185,7 @@ fn render_entity_inspector(
 
         let type_name = entity.type_name.clone();
         let type_def = project.schema.get_type(&type_name).cloned();
+        let entity_type_config = project.get_entity_type_config(&type_name).cloned();
         let enums = project.schema.enums.clone();
 
         // Collect sprite sheet data (full SpriteData for embedding)
@@ -206,13 +220,24 @@ fn render_entity_inspector(
             })
             .collect();
 
+        // Collect animation names from the entity's sprite sheet (if any)
+        let animation_names: Vec<String> = entity_type_config
+            .as_ref()
+            .and_then(|cfg| cfg.sprite.as_ref())
+            .and_then(|sprite_cfg| sprite_cfg.sprite_sheet_id)
+            .and_then(|sheet_id| project.get_sprite_sheet(sheet_id))
+            .map(|sheet| sheet.animations.keys().cloned().collect())
+            .unwrap_or_default();
+
         (
             type_name,
             type_def,
+            entity_type_config,
             enums,
             sprite_sheets,
             dialogue_options,
             ref_options,
+            animation_names,
         )
     };
 
@@ -286,6 +311,17 @@ fn render_entity_inspector(
                 &ref_options,
             );
         }
+    }
+
+    // Component Overrides section
+    if let Some(ref type_config) = entity_type_config {
+        render_component_overrides_section(
+            ui,
+            entity_id,
+            &mut entity.component_overrides,
+            type_config,
+            &animation_names,
+        );
     }
 
     ui.separator();
@@ -1104,4 +1140,352 @@ fn render_array_editor(
         });
 
     create_new_type
+}
+
+// ============================================================================
+// Component Override Editors
+// ============================================================================
+
+/// Render the component overrides section for an entity
+fn render_component_overrides_section(
+    ui: &mut egui::Ui,
+    entity_id: Uuid,
+    overrides: &mut ComponentOverrides,
+    type_config: &EntityTypeConfig,
+    animation_names: &[String],
+) {
+    let has_physics = type_config.physics.is_some();
+    let has_input = type_config.input.is_some();
+    let has_sprite = type_config.sprite.is_some();
+
+    // Only show section if at least one component is configured
+    if !has_physics && !has_input && !has_sprite {
+        return;
+    }
+
+    ui.separator();
+
+    let header_id = format!("components_{}", entity_id);
+    egui::CollapsingHeader::new("Components")
+        .id_salt(&header_id)
+        .default_open(true)
+        .show(ui, |ui| {
+            // Physics overrides
+            if let Some(ref physics_config) = type_config.physics {
+                render_physics_overrides(ui, entity_id, overrides, physics_config);
+            }
+
+            // Input overrides
+            if let Some(ref input_config) = type_config.input {
+                render_input_overrides(ui, entity_id, overrides, input_config);
+            }
+
+            // Sprite overrides
+            if let Some(ref sprite_config) = type_config.sprite {
+                render_sprite_overrides(ui, entity_id, overrides, sprite_config, animation_names);
+            }
+
+            // Reset button
+            ui.add_space(8.0);
+            if !overrides.is_empty() {
+                if ui.button("Reset to Type Defaults").clicked() {
+                    overrides.clear();
+                }
+            }
+        });
+}
+
+/// Render physics override fields
+fn render_physics_overrides(
+    ui: &mut egui::Ui,
+    entity_id: Uuid,
+    overrides: &mut ComponentOverrides,
+    physics_config: &PhysicsConfig,
+) {
+    let physics_id = format!("physics_{}", entity_id);
+    egui::CollapsingHeader::new("Physics")
+        .id_salt(&physics_id)
+        .default_open(false)
+        .show(ui, |ui| {
+            // Ensure physics overrides exist
+            let physics = overrides
+                .physics
+                .get_or_insert_with(PhysicsOverrides::default);
+
+            // Gravity Scale
+            render_override_field_f32(
+                ui,
+                "Gravity Scale",
+                &format!("{}_gravity", physics_id),
+                &mut physics.gravity_scale,
+                physics_config.gravity_scale,
+                0.01,
+            );
+
+            // Friction
+            render_override_field_f32(
+                ui,
+                "Friction",
+                &format!("{}_friction", physics_id),
+                &mut physics.friction,
+                physics_config.friction,
+                0.01,
+            );
+
+            // Restitution
+            render_override_field_f32(
+                ui,
+                "Restitution",
+                &format!("{}_restitution", physics_id),
+                &mut physics.restitution,
+                physics_config.restitution,
+                0.01,
+            );
+
+            // Linear Damping
+            render_override_field_f32(
+                ui,
+                "Linear Damping",
+                &format!("{}_linear_damping", physics_id),
+                &mut physics.linear_damping,
+                physics_config.linear_damping,
+                0.1,
+            );
+
+            // Clean up empty overrides
+            if physics.is_empty() {
+                overrides.physics = None;
+            }
+        });
+}
+
+/// Render input override fields
+fn render_input_overrides(
+    ui: &mut egui::Ui,
+    entity_id: Uuid,
+    overrides: &mut ComponentOverrides,
+    input_config: &InputConfig,
+) {
+    let input_id = format!("input_{}", entity_id);
+    egui::CollapsingHeader::new("Input")
+        .id_salt(&input_id)
+        .default_open(false)
+        .show(ui, |ui| {
+            // Ensure input overrides exist
+            let input = overrides.input.get_or_insert_with(InputOverrides::default);
+
+            // Speed
+            render_override_field_f32(
+                ui,
+                "Speed",
+                &format!("{}_speed", input_id),
+                &mut input.speed,
+                input_config.speed,
+                1.0,
+            );
+
+            // Jump Force
+            if let Some(default_jump) = input_config.jump_force {
+                render_override_field_f32_opt(
+                    ui,
+                    "Jump Force",
+                    &format!("{}_jump", input_id),
+                    &mut input.jump_force,
+                    default_jump,
+                    1.0,
+                );
+            }
+
+            // Acceleration
+            render_override_field_f32(
+                ui,
+                "Acceleration",
+                &format!("{}_accel", input_id),
+                &mut input.acceleration,
+                input_config.acceleration,
+                1.0,
+            );
+
+            // Deceleration
+            render_override_field_f32(
+                ui,
+                "Deceleration",
+                &format!("{}_decel", input_id),
+                &mut input.deceleration,
+                input_config.deceleration,
+                1.0,
+            );
+
+            // Max Fall Speed
+            if let Some(default_fall) = input_config.max_fall_speed {
+                render_override_field_f32_opt(
+                    ui,
+                    "Max Fall Speed",
+                    &format!("{}_fall", input_id),
+                    &mut input.max_fall_speed,
+                    default_fall,
+                    1.0,
+                );
+            }
+
+            // Clean up empty overrides
+            if input.is_empty() {
+                overrides.input = None;
+            }
+        });
+}
+
+/// Render sprite override fields
+fn render_sprite_overrides(
+    ui: &mut egui::Ui,
+    entity_id: Uuid,
+    overrides: &mut ComponentOverrides,
+    sprite_config: &SpriteConfig,
+    animation_names: &[String],
+) {
+    let sprite_id = format!("sprite_{}", entity_id);
+    egui::CollapsingHeader::new("Sprite")
+        .id_salt(&sprite_id)
+        .default_open(false)
+        .show(ui, |ui| {
+            // Ensure sprite overrides exist
+            let sprite = overrides
+                .sprite
+                .get_or_insert_with(SpriteOverrides::default);
+
+            // Scale
+            let default_scale = sprite_config.scale.unwrap_or(1.0);
+            render_override_field_f32_opt(
+                ui,
+                "Scale",
+                &format!("{}_scale", sprite_id),
+                &mut sprite.scale,
+                default_scale,
+                0.1,
+            );
+
+            // Default Animation (dropdown)
+            let default_anim = sprite_config.default_animation.as_deref().unwrap_or("idle");
+
+            ui.horizontal(|ui| {
+                ui.label("Animation:");
+
+                let current = sprite.default_animation.as_deref().unwrap_or(default_anim);
+                let is_overridden = sprite.default_animation.is_some();
+
+                // Show indicator if overridden
+                if is_overridden {
+                    ui.colored_label(egui::Color32::YELLOW, "*");
+                }
+
+                egui::ComboBox::from_id_salt(format!("{}_anim", sprite_id))
+                    .selected_text(current)
+                    .show_ui(ui, |ui| {
+                        // Option to use type default
+                        if ui
+                            .selectable_label(
+                                !is_overridden,
+                                format!("(default: {})", default_anim),
+                            )
+                            .clicked()
+                        {
+                            sprite.default_animation = None;
+                        }
+
+                        // Animation options
+                        for anim_name in animation_names {
+                            let selected = is_overridden
+                                && sprite.default_animation.as_deref() == Some(anim_name);
+                            if ui.selectable_label(selected, anim_name).clicked() {
+                                sprite.default_animation = Some(anim_name.clone());
+                            }
+                        }
+                    });
+
+                // Show default hint
+                if !is_overridden {
+                    ui.label(
+                        egui::RichText::new(format!("(def: {})", default_anim))
+                            .weak()
+                            .small(),
+                    );
+                }
+            });
+
+            // Clean up empty overrides
+            if sprite.is_empty() {
+                overrides.sprite = None;
+            }
+        });
+}
+
+/// Render a single f32 override field with default hint
+fn render_override_field_f32(
+    ui: &mut egui::Ui,
+    label: &str,
+    id: &str,
+    value: &mut Option<f32>,
+    default: f32,
+    speed: f32,
+) {
+    ui.horizontal(|ui| {
+        ui.label(format!("{}:", label));
+
+        let is_overridden = value.is_some();
+        let current = value.unwrap_or(default);
+
+        // Show indicator if overridden
+        if is_overridden {
+            ui.colored_label(egui::Color32::YELLOW, "*");
+        }
+
+        // Value editor - use push_id for stable ID to maintain focus while editing
+        let mut edit_val = current;
+        let response = ui
+            .push_id(id, |ui| {
+                ui.add(
+                    egui::DragValue::new(&mut edit_val)
+                        .speed(speed)
+                        .min_decimals(1)
+                        .max_decimals(2),
+                )
+            })
+            .inner;
+
+        if response.changed() {
+            // If value changed, set the override
+            *value = Some(edit_val);
+        }
+
+        // Show default hint
+        ui.label(
+            egui::RichText::new(format!("(def: {:.1})", default))
+                .weak()
+                .small(),
+        );
+
+        // Reset button (only if overridden)
+        if is_overridden {
+            if ui
+                .small_button("↺")
+                .on_hover_text("Reset to default")
+                .clicked()
+            {
+                *value = None;
+            }
+        }
+    });
+}
+
+/// Render a single optional f32 override field (for fields that can be None at type level)
+fn render_override_field_f32_opt(
+    ui: &mut egui::Ui,
+    label: &str,
+    id: &str,
+    value: &mut Option<f32>,
+    default: f32,
+    speed: f32,
+) {
+    // Same as render_override_field_f32 for now
+    render_override_field_f32(ui, label, id, value, default, speed);
 }

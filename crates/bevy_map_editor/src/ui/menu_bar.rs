@@ -186,6 +186,35 @@ pub fn render_menu_bar(
                         ui.close();
                     }
                 });
+
+                ui.separator();
+
+                // Code generation submenu
+                ui.menu_button("Code Generation", |ui| {
+                    let _codegen_enabled = project.game_config.enable_codegen;
+                    let has_project = project.game_config.project_path.is_some();
+
+                    ui.add_enabled_ui(has_project, |ui| {
+                        if ui.button("Generate Now").clicked() {
+                            editor_state.pending_action = Some(PendingAction::GenerateCode);
+                            ui.close();
+                        }
+                    });
+
+                    if ui.button("Preview Code...").clicked() {
+                        editor_state.pending_action = Some(PendingAction::PreviewCode);
+                        ui.close();
+                    }
+
+                    ui.separator();
+
+                    ui.add_enabled_ui(has_project, |ui| {
+                        if ui.button("Open in VS Code").clicked() {
+                            editor_state.pending_action = Some(PendingAction::OpenInVSCode);
+                            ui.close();
+                        }
+                    });
+                });
             });
 
             // Tools menu - Specialized editors

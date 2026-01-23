@@ -30,6 +30,14 @@ pub enum PendingAction {
     CreateGameProject,
     /// Install Bevy CLI
     InstallBevyCli,
+    /// Generate code from schema
+    GenerateCode,
+    /// Preview generated code
+    PreviewCode,
+    /// Open game project in VS Code
+    OpenInVSCode,
+    /// Open game project folder in file browser
+    OpenProjectFolder,
 }
 
 /// Render all dialogs

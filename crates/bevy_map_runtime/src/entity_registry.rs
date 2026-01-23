@@ -4,7 +4,7 @@
 //! from EntityInstance data in map files.
 
 use bevy::prelude::*;
-use bevy_map_core::{EntityInstance, Value};
+use bevy_map_core::{ComponentOverrides, EntityInstance, Value};
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use uuid::Uuid;
@@ -96,6 +96,8 @@ pub struct MapEntityMarker {
 pub struct EntityProperties {
     /// All properties as they were defined in the map editor
     pub properties: HashMap<String, Value>,
+    /// Instance-level component overrides (override type config values)
+    pub component_overrides: ComponentOverrides,
 }
 
 impl EntityProperties {
@@ -225,6 +227,7 @@ impl<T: MapEntityType> EntitySpawner for TypedSpawner<T> {
             },
             EntityProperties {
                 properties: instance.properties.clone(),
+                component_overrides: instance.component_overrides.clone(),
             },
         ));
     }
@@ -330,6 +333,7 @@ impl EntityRegistry {
                 },
                 EntityProperties {
                     properties: instance.properties.clone(),
+                    component_overrides: instance.component_overrides.clone(),
                 },
             ));
             false

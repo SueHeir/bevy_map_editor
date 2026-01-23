@@ -1,0 +1,24 @@
+[package]
+name = "bevy_map_codegen"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Code generation for bevy_map_editor game projects"
+keywords = ["bevy", "codegen", "game-development", "editor"]
+categories = ["game-development", "development-tools"]
+readme = "README.md"
+
+[dependencies]
+bevy_map_core = { workspace = true }
+bevy_map_schema = { workspace = true }
+serde_json = { workspace = true }
+codegen = "0.2"
+prettyplease = "0.2"
+syn = "2"
+thiserror = "2.0"
+toml = "0.8"
+
+[lints]
+workspace = true

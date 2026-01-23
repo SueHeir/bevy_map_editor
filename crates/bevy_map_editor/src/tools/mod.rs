@@ -16,7 +16,7 @@ use crate::commands::{
 use crate::preferences::EditorPreferences;
 use crate::project::Project;
 use crate::render::RenderState;
-use crate::ui::{EditorTool, Selection, ToolMode};
+use crate::ui::{EditorTool, Selection, ToolMode, UiHoverState};
 use crate::EditorState;
 use std::collections::HashSet;
 
@@ -226,6 +226,7 @@ fn handle_viewport_input(
     camera_q: Query<(&Camera, &GlobalTransform), With<Camera2d>>,
     mouse_buttons: Res<ButtonInput<MouseButton>>,
     keyboard: Res<ButtonInput<KeyCode>>,
+    ui_hover_state: Res<UiHoverState>,
 ) {
     let Ok(ctx) = contexts.ctx_mut() else { return };
 
@@ -290,35 +291,19 @@ fn handle_viewport_input(
     // Get tile size for coordinate conversion
     let tile_size = get_tile_size(&editor_state, &project);
 
-    // Check if pointer is over the right-side inspector panel
-    // Estimate: if cursor is in the right ~250px of the screen, it's likely over the inspector
-    let pointer_over_right_panel = {
-        if let Some(cursor_pos) = window.cursor_position() {
-            let window_width = window.resolution.width();
-            // Right panel is roughly the rightmost 250px (inspector_width default is 250)
-            cursor_pos.x > (window_width - 250.0)
-        } else {
-            false
-        }
-    };
-
-    // Check if any modal editors are open (block input to map when they are)
-    // TODO: In the future, only block when editors are maximized, not minimized
-    let modal_editor_open = editor_state.show_tileset_editor
-        || editor_state.show_spritesheet_editor
-        || editor_state.show_animation_editor
-        || editor_state.show_dialogue_editor;
+    // Check if pointer is over any UI panel (tree view, inspector, asset browser, modal editors)
+    // This properly tracks panel hover state using egui's response system
+    let pointer_over_ui_panel = ui_hover_state.over_any_panel();
 
     // Determine if we're in rectangle mode for this tool
     let is_rectangle_mode =
         editor_state.tool_mode == ToolMode::Rectangle && editor_state.current_tool.supports_modes();
 
     // Handle painting/erasing/entity placement/selection with left mouse
-    // Block entity/fill/select if pointer is over right panel or if modal editors are open
+    // Block input if pointer is over any UI panel
     if mouse_buttons.just_pressed(MouseButton::Left)
         && !input_state.is_panning
-        && !pointer_over_right_panel
-        && !modal_editor_open
+        && !pointer_over_ui_panel
     {
         match editor_state.current_tool {
             EditorTool::Entity => {
@@ -592,8 +577,7 @@ fn handle_viewport_input(
         && !editor_state.terrain_paint_state.is_terrain_mode
         && editor_state.selected_tile.is_some()
         && !input_state.is_drawing_rect
-        && !pointer_over_right_panel
-        && !modal_editor_open
+        && !pointer_over_ui_panel
     {
         // Simple floor division to get tile under cursor
         let tile_x = (world_pos.x / tile_size).floor() as i32;

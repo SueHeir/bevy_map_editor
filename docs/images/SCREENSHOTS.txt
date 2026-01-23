@@ -1,0 +1,43 @@
+Screenshot Requirements for README
+===================================
+
+Add the following screenshots to this directory:
+
+1. editor_screenshot.png
+   - Full editor view showing:
+     - Menu bar and toolbar
+     - Project tree panel (left)
+     - Tilemap viewport (center)
+     - Inspector panel (right)
+   - Recommended size: 1920x1080 or similar
+
+2. runtime_screenshot.png
+   - Game running with loaded map
+   - Shows tilemap rendered in Bevy
+   - Recommended size: 1280x720 or similar
+
+3. terrain_painting.png
+   - Editor with terrain palette visible
+   - Show autotiling in action
+   - Highlight before/after of terrain transitions
+
+4. entity_placement.png
+   - Entity tool selected
+   - Custom entities placed on map
+   - Inspector showing entity properties
+
+5. dialogue_editor.png
+   - Dialogue editor panel open
+   - Node graph with multiple connected nodes
+   - Show different node types (Text, Choice, etc.)
+
+6. animation_editor.png
+   - Animation editor panel open
+   - Sprite sheet loaded with frame grid
+   - Animation timeline or frame selection
+
+Tips:
+- Use PNG format for crisp text
+- Keep file sizes reasonable (<500KB each)
+- Dark theme screenshots work well on GitHub
+- Crop to focus on the relevant UI area

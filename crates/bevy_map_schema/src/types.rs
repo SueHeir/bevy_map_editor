@@ -70,6 +70,19 @@ fn default_tile_size() -> u32 {
     32
 }
 
+/// How an entity type should be displayed in the viewport
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ViewportDisplayMode {
+    /// Display as a colored square with marker_size (current default behavior)
+    #[default]
+    ColoredSquare,
+    /// Use the icon field path to load and display a texture
+    Icon,
+    /// Use SpriteConfig's sprite_sheet + default_animation (first frame)
+    Sprite,
+}
+
 /// Definition of a type (from schema)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TypeDef {
@@ -81,6 +94,9 @@ pub struct TypeDef {
     /// Marker size in pixels for rendering on canvas (default: 16)
     #[serde(default)]
     pub marker_size: Option<u32>,
+    /// How this entity type should be displayed in the viewport
+    #[serde(default)]
+    pub viewport_display: ViewportDisplayMode,
     #[serde(default)]
     pub properties: Vec<PropertyDef>,
 }
@@ -96,6 +112,7 @@ impl Default for TypeDef {
             icon: None,
             placeable: false,
             marker_size: None,
+            viewport_display: ViewportDisplayMode::default(),
             properties: Vec::new(),
         }
     }

@@ -28,7 +28,7 @@ use bevy::prelude::*;
 #[cfg(feature = "physics")]
 use avian2d::prelude::*;
 
-use crate::entity_registry::MapEntityMarker;
+use crate::entity_registry::{EntityProperties, MapEntityMarker};
 use crate::MapRoot;
 
 #[cfg(feature = "physics")]
@@ -83,7 +83,7 @@ fn spawn_entity_physics(
     mut commands: Commands,
     // Query for newly added entities that don't have physics yet
     entity_query: Query<
-        (Entity, &MapEntityMarker),
+        (Entity, &MapEntityMarker, Option<&EntityProperties>),
         (Added<MapEntityMarker>, Without<EntityPhysicsSpawned>),
     >,
     // Need to find the map project to get entity type configs
@@ -99,7 +99,7 @@ fn spawn_entity_physics(
         return;
     };
 
-    for (entity, marker) in entity_query.iter() {
+    for (entity, marker, entity_props) in entity_query.iter() {
         // Look up the type config for this entity
         let Some(type_config) = project.get_entity_type_config(&marker.type_name) else {
             // No type config, mark as processed and continue
@@ -108,13 +108,24 @@ fn spawn_entity_physics(
         };
 
         // Check if physics is configured
-        let Some(physics) = &type_config.physics else {
+        let Some(base_physics) = &type_config.physics else {
             commands.entity(entity).insert(EntityPhysicsSpawned);
             continue;
         };
 
-        // Spawn physics components
-        spawn_physics_components(&mut commands, entity, physics);
+        // Apply instance-level overrides if available
+        let physics_config: PhysicsConfig = if let Some(props) = entity_props {
+            if let Some(ref physics_overrides) = props.component_overrides.physics {
+                base_physics.with_overrides(physics_overrides)
+            } else {
+                base_physics.clone()
+            }
+        } else {
+            base_physics.clone()
+        };
+
+        // Spawn physics components with merged config
+        spawn_physics_components(&mut commands, entity, &physics_config);
 
         // Mark as processed
         commands.entity(entity).insert(EntityPhysicsSpawned);

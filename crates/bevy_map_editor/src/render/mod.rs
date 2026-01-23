@@ -12,8 +12,9 @@ use uuid::Uuid;
 
 use crate::project::Project;
 use crate::tools::ViewportInputState;
-use crate::ui::{EditorTool, Selection, TilesetTextureCache, ToolMode};
+use crate::ui::{EditorTool, EntityTextureCache, Selection, TilesetTextureCache, ToolMode};
 use crate::EditorState;
+use bevy_map_schema::ViewportDisplayMode;
 
 /// Plugin for map rendering
 pub struct MapRenderPlugin;
@@ -1930,12 +1931,13 @@ pub struct EntityRenderState {
     pub last_layer: Option<usize>,
 }
 
-/// System to render entities on the canvas as colored rectangles
+/// System to render entities on the canvas based on their viewport display mode
 fn sync_entity_rendering(
     mut commands: Commands,
     editor_state: Res<EditorState>,
     project: Res<Project>,
     mut entity_render_state: ResMut<EntityRenderState>,
+    entity_texture_cache: Res<EntityTextureCache>,
 ) {
     let current_level_id = editor_state.selected_level;
     let current_layer_idx = editor_state.selected_layer;
@@ -2012,29 +2014,168 @@ fn sync_entity_rendering(
             .map(|td| parse_hex_color(&td.color))
             .unwrap_or(Color::srgba(0.4, 0.8, 0.4, 0.8)); // Default green
         let entity_size = type_def.and_then(|td| td.marker_size).unwrap_or(16) as f32;
+        let viewport_display = type_def.map(|td| td.viewport_display).unwrap_or_default();
 
-        if let Some(&sprite_entity) = entity_render_state.entity_sprites.get(&key) {
-            // Update position, color, and visibility of existing sprite
-            if let Ok(mut entity_commands) = commands.get_entity(sprite_entity) {
-                entity_commands.insert((
-                    Transform::from_xyz(x, y, 50.0),
+        // Determine sprite configuration based on viewport display mode
+        let sprite = match viewport_display {
+            ViewportDisplayMode::Icon => {
+                // Try to use icon texture
+                if let Some(icon_path) = type_def.and_then(|td| td.icon.as_ref()) {
+                    if let Some((handle, width, height)) = entity_texture_cache.icons.get(icon_path)
+                    {
+                        Sprite {
+                            image: handle.clone(),
+                            custom_size: Some(Vec2::new(*width as f32, *height as f32)),
+                            ..default()
+                        }
+                    } else {
+                        // Fallback to colored square while loading or if not available
+                        Sprite {
+                            color,
+                            custom_size: Some(Vec2::new(entity_size, entity_size)),
+                            ..default()
+                        }
+                    }
+                } else {
+                    // No icon specified, fallback to colored square
                     Sprite {
                         color,
                         custom_size: Some(Vec2::new(entity_size, entity_size)),
                         ..default()
-                    },
-                    visibility,
-                ));
+                    }
+                }
+            }
+            ViewportDisplayMode::Sprite => {
+                // Try to use first frame of sprite animation
+                if let Some(entity_type_config) = project.entity_type_configs.get(&entity.type_name)
+                {
+                    if let Some(sprite_config) = &entity_type_config.sprite {
+                        if let Some(sprite_sheet_id) = sprite_config.sprite_sheet_id {
+                            // Find the sprite sheet
+                            if let Some(sprite_sheet) = project
+                                .sprite_sheets
+                                .iter()
+                                .find(|ss| ss.id == sprite_sheet_id)
+                            {
+                                // Get texture from cache
+                                if let Some((handle, img_width, _img_height)) =
+                                    entity_texture_cache.sprite_sheets.get(&sprite_sheet_id)
+                                {
+                                    // Get the default animation to find the first frame
+                                    let frame_rect = sprite_config
+                                        .default_animation
+                                        .as_ref()
+                                        .and_then(|anim_name| {
+                                            sprite_sheet.animations.get(anim_name)
+                                        })
+                                        .and_then(|anim| anim.frames.first())
+                                        .map(|&frame_index| {
+                                            // Calculate source rect from frame index
+                                            let frame_w = sprite_sheet.frame_width;
+                                            let frame_h = sprite_sheet.frame_height;
+                                            let cols = (*img_width) / frame_w.max(1);
+                                            let col = (frame_index as u32) % cols.max(1);
+                                            let row = (frame_index as u32) / cols.max(1);
+                                            let src_x = col * frame_w;
+                                            let src_y = row * frame_h;
+                                            bevy::math::Rect::new(
+                                                src_x as f32,
+                                                src_y as f32,
+                                                (src_x + frame_w) as f32,
+                                                (src_y + frame_h) as f32,
+                                            )
+                                        });
+
+                                    if let Some(rect) = frame_rect {
+                                        Sprite {
+                                            image: handle.clone(),
+                                            rect: Some(rect),
+                                            custom_size: Some(Vec2::new(
+                                                sprite_sheet.frame_width as f32,
+                                                sprite_sheet.frame_height as f32,
+                                            )),
+                                            ..default()
+                                        }
+                                    } else {
+                                        // No valid frame, use first frame as fallback
+                                        let frame_w = sprite_sheet.frame_width;
+                                        let frame_h = sprite_sheet.frame_height;
+                                        Sprite {
+                                            image: handle.clone(),
+                                            rect: Some(bevy::math::Rect::new(
+                                                0.0,
+                                                0.0,
+                                                frame_w as f32,
+                                                frame_h as f32,
+                                            )),
+                                            custom_size: Some(Vec2::new(
+                                                frame_w as f32,
+                                                frame_h as f32,
+                                            )),
+                                            ..default()
+                                        }
+                                    }
+                                } else {
+                                    // Texture not loaded yet, fallback to colored square
+                                    Sprite {
+                                        color,
+                                        custom_size: Some(Vec2::new(entity_size, entity_size)),
+                                        ..default()
+                                    }
+                                }
+                            } else {
+                                // Sprite sheet not found, fallback
+                                Sprite {
+                                    color,
+                                    custom_size: Some(Vec2::new(entity_size, entity_size)),
+                                    ..default()
+                                }
+                            }
+                        } else {
+                            // No sprite sheet configured, fallback
+                            Sprite {
+                                color,
+                                custom_size: Some(Vec2::new(entity_size, entity_size)),
+                                ..default()
+                            }
+                        }
+                    } else {
+                        // No sprite config, fallback
+                        Sprite {
+                            color,
+                            custom_size: Some(Vec2::new(entity_size, entity_size)),
+                            ..default()
+                        }
+                    }
+                } else {
+                    // No entity type config, fallback
+                    Sprite {
+                        color,
+                        custom_size: Some(Vec2::new(entity_size, entity_size)),
+                        ..default()
+                    }
+                }
+            }
+            ViewportDisplayMode::ColoredSquare => {
+                // Default: colored square
+                Sprite {
+                    color,
+                    custom_size: Some(Vec2::new(entity_size, entity_size)),
+                    ..default()
+                }
+            }
+        };
+
+        if let Some(&sprite_entity) = entity_render_state.entity_sprites.get(&key) {
+            // Update position and visibility of existing sprite
+            if let Ok(mut entity_commands) = commands.get_entity(sprite_entity) {
+                entity_commands.insert((Transform::from_xyz(x, y, 50.0), sprite, visibility));
             }
         } else {
             // Spawn new sprite with visibility
             let sprite_entity = commands
                 .spawn((
-                    Sprite {
-                        color,
-                        custom_size: Some(Vec2::new(entity_size, entity_size)),
-                        ..default()
-                    },
+                    sprite,
                     Transform::from_xyz(x, y, 50.0),
                     visibility,
                     EditorEntitySprite {

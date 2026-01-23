@@ -9,6 +9,7 @@ members = [
     "crates/bevy_map_derive",
     "crates/bevy_map_runtime",
     "crates/bevy_map_schema",
+    "crates/bevy_map_codegen",
     "crates/bevy_map_editor",
     "examples",
 ]
@@ -32,6 +33,7 @@ bevy_map_dialogue = { version = "0.3.1", path = "crates/bevy_map_dialogue" }
 bevy_map_derive = { version = "0.3.1", path = "crates/bevy_map_derive" }
 bevy_map_runtime = { version = "0.3.1", path = "crates/bevy_map_runtime" }
 bevy_map_schema = { version = "0.3.1", path = "crates/bevy_map_schema" }
+bevy_map_codegen = { version = "0.3.1", path = "crates/bevy_map_codegen" }
 bevy_map_editor = { version = "0.3.1", path = "crates/bevy_map_editor" }
 
 # Serialization

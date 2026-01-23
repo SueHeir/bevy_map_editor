@@ -4,6 +4,7 @@
 
 mod animation_editor;
 mod asset_browser;
+mod code_preview_dialog;
 mod dialogs;
 mod dialogue_editor;
 mod entity_palette;
@@ -25,6 +26,7 @@ mod world_view;
 
 pub use animation_editor::{render_animation_editor, AnimationEditorResult, AnimationEditorState};
 pub use asset_browser::{render_asset_browser, AssetBrowserResult, AssetBrowserState};
+pub use code_preview_dialog::{render_code_preview_dialog, CodePreviewDialogState, CodePreviewTab};
 pub use dialogs::*;
 pub use dialogue_editor::{render_dialogue_editor, DialogueEditorResult, DialogueEditorState};
 pub use entity_palette::{render_entity_palette, EntityPaintState};
@@ -106,6 +108,42 @@ impl TilesetTextureCache {
     }
 }
 
+/// Cache for entity icon/sprite textures used in viewport rendering
+#[derive(Resource, Default)]
+pub struct EntityTextureCache {
+    /// Icon textures: icon_path -> (handle, width, height)
+    pub icons: HashMap<String, (Handle<Image>, u32, u32)>,
+    /// Sprite sheet textures: sprite_sheet_id -> (handle, width, height)
+    pub sprite_sheets: HashMap<Uuid, (Handle<Image>, u32, u32)>,
+    /// Pending icon loads: icon_path -> handle
+    pub pending_icons: HashMap<String, Handle<Image>>,
+    /// Pending sprite sheet loads: sprite_sheet_id -> handle
+    pub pending_sprite_sheets: HashMap<Uuid, Handle<Image>>,
+}
+
+/// Tracks whether pointer is over UI panels (not viewport)
+#[derive(Resource, Default)]
+pub struct UiHoverState {
+    /// Pointer is over the left tree view panel
+    pub over_tree_view: bool,
+    /// Pointer is over the right inspector panel
+    pub over_inspector: bool,
+    /// Pointer is over the bottom asset browser panel
+    pub over_asset_browser: bool,
+    /// Pointer is over any modal editor (tileset, animation, etc.)
+    pub over_modal_editor: bool,
+}
+
+impl UiHoverState {
+    /// Returns true if pointer is over any UI panel
+    pub fn over_any_panel(&self) -> bool {
+        self.over_tree_view
+            || self.over_inspector
+            || self.over_asset_browser
+            || self.over_modal_editor
+    }
+}
+
 /// Main UI plugin
 pub struct EditorUiPlugin;
 
@@ -114,11 +152,14 @@ impl Plugin for EditorUiPlugin {
         app.init_resource::<UiState>()
             .init_resource::<SpritesheetTextureCache>()
             .init_resource::<TilesetTextureCache>()
+            .init_resource::<EntityTextureCache>()
+            .init_resource::<UiHoverState>()
             .add_systems(
                 Update,
                 (
                     load_tileset_textures,
                     load_spritesheet_textures,
+                    load_entity_textures,
                     process_edit_actions,
                 ),
             )
@@ -414,6 +455,110 @@ fn load_spritesheet_textures(
     }
 }
 
+/// System to load entity icon/sprite textures for viewport rendering
+fn load_entity_textures(
+    project: Res<Project>,
+    mut cache: ResMut<EntityTextureCache>,
+    asset_server: Res<AssetServer>,
+    images: Res<Assets<Image>>,
+) {
+    use bevy::asset::LoadState;
+    use bevy_map_schema::ViewportDisplayMode;
+
+    // Check pending icon loads - clone handles first to avoid borrow conflicts
+    let pending_icons: Vec<_> = cache
+        .pending_icons
+        .iter()
+        .map(|(k, v)| (k.clone(), v.clone()))
+        .collect();
+    for (path, handle) in pending_icons {
+        match asset_server.get_load_state(handle.id()) {
+            Some(LoadState::Loaded) => {
+                if let Some(image) = images.get(&handle) {
+                    let width = image.width();
+                    let height = image.height();
+                    cache.icons.insert(path.clone(), (handle, width, height));
+                }
+                cache.pending_icons.remove(&path);
+            }
+            Some(LoadState::Failed(_)) => {
+                cache.pending_icons.remove(&path);
+            }
+            _ => {}
+        }
+    }
+
+    // Check pending sprite sheet loads - clone handles first to avoid borrow conflicts
+    let pending_sheets: Vec<_> = cache
+        .pending_sprite_sheets
+        .iter()
+        .map(|(k, v)| (*k, v.clone()))
+        .collect();
+    for (sheet_id, handle) in pending_sheets {
+        match asset_server.get_load_state(handle.id()) {
+            Some(LoadState::Loaded) => {
+                if let Some(image) = images.get(&handle) {
+                    let width = image.width();
+                    let height = image.height();
+                    cache
+                        .sprite_sheets
+                        .insert(sheet_id, (handle, width, height));
+                }
+                cache.pending_sprite_sheets.remove(&sheet_id);
+            }
+            Some(LoadState::Failed(_)) => {
+                cache.pending_sprite_sheets.remove(&sheet_id);
+            }
+            _ => {}
+        }
+    }
+
+    // Discover textures needed from entity types based on their viewport_display mode
+    for (type_name, type_def) in &project.schema.data_types {
+        match type_def.viewport_display {
+            ViewportDisplayMode::Icon => {
+                // Load icon texture if specified and not already loaded/pending
+                if let Some(icon_path) = &type_def.icon {
+                    if !icon_path.is_empty()
+                        && !cache.icons.contains_key(icon_path)
+                        && !cache.pending_icons.contains_key(icon_path)
+                    {
+                        let asset_path = crate::to_asset_path(icon_path);
+                        let handle: Handle<Image> = asset_server.load(&asset_path);
+                        cache.pending_icons.insert(icon_path.clone(), handle);
+                    }
+                }
+            }
+            ViewportDisplayMode::Sprite => {
+                // Load sprite sheet texture if entity type has a SpriteConfig
+                if let Some(entity_type_config) = project.entity_type_configs.get(type_name) {
+                    if let Some(sprite_config) = &entity_type_config.sprite {
+                        if let Some(sprite_sheet_id) = sprite_config.sprite_sheet_id {
+                            if !cache.sprite_sheets.contains_key(&sprite_sheet_id)
+                                && !cache.pending_sprite_sheets.contains_key(&sprite_sheet_id)
+                            {
+                                // Find the sprite sheet and load its texture
+                                if let Some(sprite_sheet) = project
+                                    .sprite_sheets
+                                    .iter()
+                                    .find(|ss| ss.id == sprite_sheet_id)
+                                {
+                                    let asset_path = crate::to_asset_path(&sprite_sheet.sheet_path);
+                                    let handle: Handle<Image> = asset_server.load(&asset_path);
+                                    cache.pending_sprite_sheets.insert(sprite_sheet_id, handle);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            ViewportDisplayMode::ColoredSquare => {
+                // No texture loading needed for colored squares
+            }
+        }
+    }
+}
+
 /// Main UI rendering system
 fn render_ui(
     mut contexts: EguiContexts,
@@ -425,8 +570,12 @@ fn render_ui(
     assets_base_path: Res<crate::AssetsBasePath>,
     history: Res<CommandHistory>,
     clipboard: Res<TileClipboard>,
+    mut ui_hover_state: ResMut<UiHoverState>,
 ) {
     let Ok(ctx) = contexts.ctx_mut() else { return };
+
+    // Reset hover states at start of frame
+    *ui_hover_state = UiHoverState::default();
 
     // Apply editor theme
     EditorTheme::apply(ctx);
@@ -458,19 +607,20 @@ fn render_ui(
     // Left panel - Tree View
     let mut tree_view_result = TreeViewResult::default();
     if ui_state.show_tree_view {
-        egui::SidePanel::left("tree_view")
+        let response = egui::SidePanel::left("tree_view")
             .resizable(true)
             .default_width(ui_state.tree_view_width)
             .show(ctx, |ui| {
                 ui_state.tree_view_width = ui.available_width();
                 tree_view_result = render_tree_view(ui, &mut editor_state, &mut project);
             });
+        ui_hover_state.over_tree_view = response.response.contains_pointer();
     }
 
     // Right panel - Inspector + Terrain Palette
     let mut inspector_result = InspectorResult::default();
     if ui_state.show_inspector {
-        egui::SidePanel::right("inspector")
+        let response = egui::SidePanel::right("inspector")
             .resizable(true)
             .default_width(ui_state.inspector_width)
             .show(ctx, |ui| {
@@ -525,6 +675,7 @@ fn render_ui(
                     }
                 });
             });
+        ui_hover_state.over_inspector = response.response.contains_pointer();
     }
 
     // Handle inspector actions (deletions)
@@ -1130,7 +1281,7 @@ fn render_ui(
 
     // Bottom panel - Asset Browser
     if ui_state.show_asset_browser {
-        egui::TopBottomPanel::bottom("asset_browser")
+        let response = egui::TopBottomPanel::bottom("asset_browser")
             .resizable(true)
             .default_height(ui_state.asset_browser_height)
             .min_height(100.0)
@@ -1139,7 +1290,14 @@ fn render_ui(
                 let _result = render_asset_browser(ui, &mut ui_state.asset_browser_state);
                 // TODO: Handle result.file_activated for import actions
             });
+        ui_hover_state.over_asset_browser = response.response.contains_pointer();
     }
+
+    // Track modal editor hover state - any modal editor blocks viewport input
+    ui_hover_state.over_modal_editor = editor_state.show_tileset_editor
+        || editor_state.show_spritesheet_editor
+        || editor_state.show_animation_editor
+        || editor_state.show_dialogue_editor;
 
     // Central area - world view or level view
     egui::CentralPanel::default()
@@ -1221,6 +1379,21 @@ fn render_ui(
     if game_settings_result.create_level_requested {
         editor_state.show_new_level_dialog = true;
     }
+    if game_settings_result.generate_code_requested {
+        editor_state.pending_action = Some(PendingAction::GenerateCode);
+    }
+    if game_settings_result.preview_code_requested {
+        editor_state.pending_action = Some(PendingAction::PreviewCode);
+    }
+    if game_settings_result.open_in_vscode_requested {
+        editor_state.pending_action = Some(PendingAction::OpenInVSCode);
+    }
+    if game_settings_result.open_folder_requested {
+        editor_state.pending_action = Some(PendingAction::OpenProjectFolder);
+    }
+
+    // Code preview dialog
+    code_preview_dialog::render_code_preview_dialog(ctx, &mut editor_state.code_preview_dialog);
 
     // Build progress dialog (shown during game build)
     let build_progress_result = render_build_progress(ctx, &mut editor_state);
@@ -1440,10 +1613,22 @@ fn process_edit_actions(
                 handle_run_game(&mut editor_state, &mut project);
             }
             PendingAction::CreateGameProject => {
-                handle_create_game_project(&mut editor_state);
+                handle_create_game_project(&mut editor_state, &mut project);
             }
             PendingAction::InstallBevyCli => {
                 handle_install_bevy_cli(&mut editor_state);
+            }
+            PendingAction::GenerateCode => {
+                handle_generate_code(&mut editor_state, &mut project);
+            }
+            PendingAction::PreviewCode => {
+                handle_preview_code(&mut editor_state, &project);
+            }
+            PendingAction::OpenInVSCode => {
+                handle_open_in_vscode(&mut editor_state, &project);
+            }
+            PendingAction::OpenProjectFolder => {
+                handle_open_project_folder(&mut editor_state, &project);
             }
             // File operations are handled in dialogs.rs
             _ => {
@@ -1903,20 +2088,30 @@ fn render_build_progress(
 }
 
 /// Handle the "Create Game Project" action
-fn handle_create_game_project(editor_state: &mut EditorState) {
+fn handle_create_game_project(editor_state: &mut EditorState, project: &mut Project) {
     use crate::bevy_cli;
 
-    // Extract project name and parent directory from the full path
+    // Extract project name and parent directory
     let Some(project_name) = editor_state.game_settings_dialog.get_project_name() else {
-        editor_state.error_message = Some("Invalid project path.".to_string());
+        editor_state.error_message = Some("Project name is required.".to_string());
         return;
     };
 
     let Some(parent_dir) = editor_state.game_settings_dialog.get_parent_dir() else {
-        editor_state.error_message =
-            Some("Invalid project path - no parent directory.".to_string());
+        editor_state.error_message = Some("Parent directory is required.".to_string());
         return;
     };
+
+    let full_path = parent_dir.join(&project_name);
+
+    // Check if directory already exists - Bevy CLI requires a fresh directory
+    if full_path.exists() {
+        editor_state.error_message = Some(format!(
+            "Directory '{}' already exists. Please choose a different project name.",
+            full_path.display()
+        ));
+        return;
+    }
 
     // Create parent directory if it doesn't exist
     if let Err(e) = std::fs::create_dir_all(&parent_dir) {
@@ -1931,6 +2126,12 @@ fn handle_create_game_project(editor_state: &mut EditorState) {
                 "Game project '{}' created successfully!",
                 project_name
             ));
+
+            // Auto-save the project path to config so code generation works immediately
+            project.game_config.project_path = Some(full_path);
+            project.game_config.project_name = project_name;
+            project.mark_dirty();
+
             // Force re-check of path status
             editor_state.game_settings_dialog.cli_installed = None;
         }
@@ -1959,6 +2160,132 @@ fn handle_install_bevy_cli(editor_state: &mut EditorState) {
             editor_state.error_message = Some(format!("Failed to install Bevy CLI: {}", e));
             editor_state.game_settings_dialog.cli_installed = Some(false);
         }
+    }
+}
+
+/// Handle the "Generate Code" action
+fn handle_generate_code(editor_state: &mut EditorState, project: &mut Project) {
+    use bevy_map_codegen::{generate_all, CodegenConfig};
+
+    let Some(game_path) = &project.game_config.project_path else {
+        editor_state.error_message =
+            Some("Game project not configured. Go to Project > Game Settings.".to_string());
+        return;
+    };
+
+    let output_dir = game_path.join(&project.game_config.codegen_output_path);
+    let config = CodegenConfig {
+        output_dir: output_dir.clone(),
+        generate_entities: project.game_config.generate_entities,
+        generate_enums: project.game_config.generate_enums,
+        generate_stubs: project.game_config.generate_stubs,
+        generate_behaviors: project.game_config.generate_behaviors,
+        generate_health: false,
+        generate_patrol: false,
+    };
+
+    match generate_all(&project.schema, &project.entity_type_configs, &config) {
+        Ok(result) => {
+            editor_state.game_settings_dialog.status_message = Some(format!(
+                "Generated {} files to {:?}",
+                result.generated_files.len(),
+                output_dir
+            ));
+            bevy::log::info!(
+                "Code generation successful: {} files",
+                result.generated_files.len()
+            );
+        }
+        Err(e) => {
+            editor_state.error_message = Some(format!("Code generation failed: {}", e));
+        }
+    }
+}
+
+/// Handle the "Preview Code" action
+fn handle_preview_code(editor_state: &mut EditorState, project: &Project) {
+    use bevy_map_codegen::generator::{
+        preview_behaviors, preview_entities, preview_enums, preview_stubs,
+    };
+
+    // Generate preview for each tab
+    let entities = match preview_entities(&project.schema) {
+        Ok(code) => code,
+        Err(e) => format!("// Error generating entities: {}", e),
+    };
+
+    let enums = match preview_enums(&project.schema) {
+        Ok(code) => code,
+        Err(e) => format!("// Error generating enums: {}", e),
+    };
+
+    let stubs = match preview_stubs(&project.schema) {
+        Ok(code) => code,
+        Err(e) => format!("// Error generating stubs: {}", e),
+    };
+
+    let behaviors = match preview_behaviors(&project.schema, &project.entity_type_configs) {
+        Ok(code) => code,
+        Err(e) => format!("// Error generating behaviors: {}", e),
+    };
+
+    // Set the output path for "Open in VS Code" functionality
+    let output_path = project
+        .game_config
+        .project_path
+        .as_ref()
+        .map(|game_path| game_path.join(&project.game_config.codegen_output_path));
+    editor_state.code_preview_dialog.output_path = output_path;
+
+    // Set VS Code path for opening files
+    editor_state.code_preview_dialog.vscode_path = project.game_config.vscode_path.clone();
+
+    // Check VS Code availability once when opening the dialog
+    editor_state.code_preview_dialog.vscode_available =
+        crate::external_editor::is_vscode_available(project.game_config.vscode_path.as_deref());
+
+    editor_state
+        .code_preview_dialog
+        .set_content(entities, enums, stubs, behaviors);
+    editor_state.code_preview_dialog.open = true;
+}
+
+/// Handle the "Open in VS Code" action
+fn handle_open_in_vscode(editor_state: &mut EditorState, project: &Project) {
+    let Some(game_path) = &project.game_config.project_path else {
+        editor_state.error_message = Some("Game project not configured.".to_string());
+        return;
+    };
+
+    if !game_path.exists() {
+        editor_state.error_message =
+            Some(format!("Game project path does not exist: {:?}", game_path));
+        return;
+    }
+
+    // Use custom VS Code path if configured
+    let vscode_path = project.game_config.vscode_path.as_deref();
+    if let Err(e) = crate::external_editor::open_in_vscode_with_custom_path(game_path, vscode_path)
+    {
+        editor_state.error_message = Some(format!("Failed to open VS Code: {}", e));
+    }
+}
+
+/// Handle the "Open Project Folder" action
+fn handle_open_project_folder(editor_state: &mut EditorState, project: &Project) {
+    let Some(game_path) = &project.game_config.project_path else {
+        editor_state.error_message = Some("Game project not configured.".to_string());
+        return;
+    };
+
+    if !game_path.exists() {
+        editor_state.error_message =
+            Some(format!("Game project path does not exist: {:?}", game_path));
+        return;
+    }
+
+    if let Err(e) = crate::external_editor::open_with_default(game_path) {
+        editor_state.error_message = Some(format!("Failed to open folder: {}", e));
     }
 }
 
