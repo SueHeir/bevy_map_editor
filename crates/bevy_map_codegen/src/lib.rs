@@ -3,7 +3,7 @@
 //! This crate provides automatic Rust code generation from schema definitions,
 //! including:
 //!
-//! - **Project scaffolding** - Create new game projects with proper structure
+//! - **Project validation** - Validate game project structure
 //! - **Entity structs** - Auto-generate `#[derive(MapEntity)]` structs from schema types
 //! - **Behavior stubs** - Generate empty system function signatures per entity type
 //! - **Behavior systems** - Pre-built systems for common 2D patterns (movement, combat, AI)
@@ -11,19 +11,17 @@
 //! # Example
 //!
 //! ```rust,ignore
-//! use bevy_map_codegen::{create_project, generate_all, ProjectConfig, CodegenConfig};
+//! use bevy_map_codegen::{generate_all, is_valid_project, ensure_generated_module, CodegenConfig};
 //!
-//! // Create a new game project
-//! let project_config = ProjectConfig {
-//!     name: "my_game".to_string(),
-//!     path: PathBuf::from("./my_game"),
-//!     bevy_version: "0.15".to_string(),
-//! };
-//! create_project(&project_config)?;
+//! // Check if project is valid
+//! if is_valid_project(&project_path) {
+//!     // Ensure generated module exists
+//!     ensure_generated_module(&project_path)?;
 //!
-//! // Generate code from schema
-//! let codegen_config = CodegenConfig::new(PathBuf::from("./my_game/src/generated"));
-//! generate_all(&schema, &entity_configs, &codegen_config)?;
+//!     // Generate code from schema
+//!     let codegen_config = CodegenConfig::new(project_path.join("src/generated"));
+//!     generate_all(&schema, &entity_configs, &codegen_config)?;
+//! }
 //! ```
 
 pub mod behaviors;
@@ -34,7 +32,7 @@ pub mod scaffold;
 pub mod stubs;
 
 pub use generator::{generate_all, CodegenConfig, CodegenResult};
-pub use scaffold::{create_project, ProjectConfig};
+pub use scaffold::{ensure_generated_module, has_generated_module, is_valid_project};
 
 use thiserror::Error;
 

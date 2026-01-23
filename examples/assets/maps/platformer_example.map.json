@@ -7677,25 +7677,14 @@
           ],
           "properties": {
             "sprite": {
-              "frame_height": 32,
-              "sheet_path": "C:\\Dev\\Workspace\\bevy_map_editor\\examples\\assets\\platformer_assets\\sprites\\knight.png",
+              "columns": 8,
+              "pivot_x": 0.0,
               "animations": {
-                "idle": {
-                  "windows": [],
-                  "triggers": [],
-                  "frames": [
-                    0,
-                    1,
-                    2,
-                    3
-                  ],
-                  "frame_duration_ms": 100,
-                  "loop_mode": "loop"
-                },
                 "run": {
+                  "windows": [],
                   "frame_duration_ms": 100,
                   "triggers": [],
-                  "windows": [],
+                  "loop_mode": "loop",
                   "frames": [
                     16,
                     17,
@@ -7713,17 +7702,28 @@
                     29,
                     30,
                     31
+                  ]
+                },
+                "idle": {
+                  "loop_mode": "loop",
+                  "frames": [
+                    0,
+                    1,
+                    2,
+                    3
                   ],
-                  "loop_mode": "loop"
+                  "windows": [],
+                  "frame_duration_ms": 100,
+                  "triggers": []
                 }
               },
-              "pivot_y": 0.0,
-              "frame_width": 32,
-              "columns": 8,
-              "rows": 8,
-              "pivot_x": 0.0,
+              "sheet_path": "C:\\Dev\\Workspace\\bevy_map_editor\\examples\\assets\\platformer_assets\\sprites\\knight.png",
               "name": "player_sheet",
-              "id": "181c2ab6-a6bf-4429-9a8f-2b306708ee55"
+              "frame_height": 32,
+              "frame_width": 32,
+              "rows": 8,
+              "id": "181c2ab6-a6bf-4429-9a8f-2b306708ee55",
+              "pivot_y": 0.0
             }
           }
         }
@@ -7796,10 +7796,17 @@
   },
   "stamps": [],
   "game_config": {
-    "project_path": null,
-    "starting_level": null,
-    "project_name": "",
-    "use_release_build": false
+    "project_path": "C:\\Dev\\Workspace\\map_editor_test\\platformer_example",
+    "starting_level": "cccb7a74-fac8-4062-a2be-901e87a5352f",
+    "project_name": "platformer_example",
+    "use_release_build": false,
+    "enable_codegen": true,
+    "codegen_output_path": "src/generated",
+    "generate_entities": true,
+    "generate_stubs": true,
+    "generate_behaviors": true,
+    "generate_enums": true,
+    "vscode_path": null
   },
   "entity_type_configs": {
     "Player": {

@@ -209,8 +209,8 @@ pub fn render_menu_bar(
                     ui.separator();
 
                     ui.add_enabled_ui(has_project, |ui| {
-                        if ui.button("Open Game Project").clicked() {
-                            editor_state.pending_action = Some(PendingAction::OpenGameProject);
+                        if ui.button("Open in VS Code").clicked() {
+                            editor_state.pending_action = Some(PendingAction::OpenInVSCode);
                             ui.close();
                         }
                     });
