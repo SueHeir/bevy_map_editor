@@ -1,0 +1,28 @@
+[package]
+name = "platformer_example"
+version = "0.1.0"
+edition = "2021"
+authors = [""]
+description = "A game created with bevy_map_editor"
+
+[dependencies]
+bevy = "0.18"
+
+# Use bevy_map crates from git (or crates.io when published)
+bevy_map_runtime = { git = "https://github.com/jbuehler23/bevy_map_editor", package = "bevy_map_runtime" }
+bevy_map_core = { git = "https://github.com/jbuehler23/bevy_map_editor", package = "bevy_map_core" }
+
+[features]
+default = []
+# Enable file watching for hot-reload during development
+hot_reload = ["bevy/file_watcher"]
+
+# Optimize for faster compile times during development
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
+
+# Mark as standalone workspace (not part of parent workspace)
+[workspace]

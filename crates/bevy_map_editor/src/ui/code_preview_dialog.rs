@@ -2,7 +2,11 @@
 //!
 //! Shows a preview of generated code before writing to disk.
 
+use std::path::PathBuf;
+
 use bevy_egui::egui;
+
+use crate::external_editor;
 
 /// Tab selection for code preview
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -53,6 +57,12 @@ pub struct CodePreviewDialogState {
     pub error: Option<String>,
     /// Scroll position for each tab
     pub scroll_positions: [f32; 4],
+    /// Output path for generated code files (for opening in VS Code)
+    pub output_path: Option<PathBuf>,
+    /// Custom VS Code path (from project config)
+    pub vscode_path: Option<String>,
+    /// Cached VS Code availability status
+    pub vscode_available: bool,
 }
 
 impl CodePreviewDialogState {
@@ -84,6 +94,19 @@ impl CodePreviewDialogState {
             CodePreviewTab::Stubs => &self.stubs_code,
             CodePreviewTab::Behaviors => &self.behaviors_code,
         }
+    }
+
+    /// Get the file path for the current tab's generated file
+    pub fn current_file_path(&self) -> Option<PathBuf> {
+        self.output_path.as_ref().map(|base| {
+            let filename = match self.selected_tab {
+                CodePreviewTab::Entities => "entities.rs",
+                CodePreviewTab::Enums => "enums.rs",
+                CodePreviewTab::Stubs => "stubs.rs",
+                CodePreviewTab::Behaviors => "behaviors.rs",
+            };
+            base.join(filename)
+        })
     }
 }
 
@@ -117,6 +140,8 @@ pub fn render_code_preview_dialog(ctx: &egui::Context, state: &mut CodePreviewDi
         .resizable(true)
         .default_width(700.0)
         .default_height(500.0)
+        .min_width(400.0)
+        .min_height(300.0)
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
         .order(egui::Order::Foreground)
         .show(ctx, |ui| {
@@ -138,21 +163,24 @@ pub fn render_code_preview_dialog(ctx: &egui::Context, state: &mut CodePreviewDi
 
             ui.separator();
 
-            // Code display with syntax highlighting styling
             // Clone the code to avoid borrow conflicts with state mutation
             let code = state.current_code().to_string();
             let line_count = code.lines().count();
 
+            // Calculate available height for the code area
+            let available_height = ui.available_height() - 30.0; // Reserve space for bottom bar
+
+            // Code display - fills available space
             egui::ScrollArea::vertical()
                 .id_salt("code_preview_scroll")
-                .auto_shrink([false, false])
+                .max_height(available_height.max(100.0))
                 .show(ui, |ui| {
+                    let available_width = ui.available_width();
                     ui.add(
                         egui::TextEdit::multiline(&mut code.clone())
                             .font(egui::TextStyle::Monospace)
                             .code_editor()
-                            .desired_width(f32::INFINITY)
-                            .desired_rows(25)
+                            .desired_width(available_width)
                             .interactive(false),
                     );
                 });
@@ -172,6 +200,24 @@ pub fn render_code_preview_dialog(ctx: &egui::Context, state: &mut CodePreviewDi
                     // Copy to clipboard
                     if ui.button("Copy to Clipboard").clicked() {
                         ctx.copy_text(code.clone());
+                    }
+
+                    // Open current tab's file in VS Code (using cached status)
+                    if state.vscode_available {
+                        if let Some(file_path) = state.current_file_path() {
+                            let file_exists = file_path.exists();
+                            ui.add_enabled_ui(file_exists, |ui| {
+                                if ui.button("Open in VS Code").clicked() {
+                                    let _ = external_editor::open_in_vscode_with_custom_path(
+                                        &file_path,
+                                        state.vscode_path.as_deref(),
+                                    );
+                                }
+                            });
+                            if !file_exists {
+                                ui.label("(Generate first to open file)");
+                            }
+                        }
                     }
                 });
             });

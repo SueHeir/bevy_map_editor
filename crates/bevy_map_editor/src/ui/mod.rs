@@ -1385,8 +1385,11 @@ fn render_ui(
     if game_settings_result.preview_code_requested {
         editor_state.pending_action = Some(PendingAction::PreviewCode);
     }
-    if game_settings_result.open_in_editor_requested {
-        editor_state.pending_action = Some(PendingAction::OpenGameProject);
+    if game_settings_result.open_in_vscode_requested {
+        editor_state.pending_action = Some(PendingAction::OpenInVSCode);
+    }
+    if game_settings_result.open_folder_requested {
+        editor_state.pending_action = Some(PendingAction::OpenProjectFolder);
     }
 
     // Code preview dialog
@@ -1610,7 +1613,7 @@ fn process_edit_actions(
                 handle_run_game(&mut editor_state, &mut project);
             }
             PendingAction::CreateGameProject => {
-                handle_create_game_project(&mut editor_state);
+                handle_create_game_project(&mut editor_state, &mut project);
             }
             PendingAction::InstallBevyCli => {
                 handle_install_bevy_cli(&mut editor_state);
@@ -1621,8 +1624,11 @@ fn process_edit_actions(
             PendingAction::PreviewCode => {
                 handle_preview_code(&mut editor_state, &project);
             }
-            PendingAction::OpenGameProject => {
-                handle_open_game_project(&mut editor_state, &project);
+            PendingAction::OpenInVSCode => {
+                handle_open_in_vscode(&mut editor_state, &project);
+            }
+            PendingAction::OpenProjectFolder => {
+                handle_open_project_folder(&mut editor_state, &project);
             }
             // File operations are handled in dialogs.rs
             _ => {
@@ -2082,20 +2088,30 @@ fn render_build_progress(
 }
 
 /// Handle the "Create Game Project" action
-fn handle_create_game_project(editor_state: &mut EditorState) {
+fn handle_create_game_project(editor_state: &mut EditorState, project: &mut Project) {
     use crate::bevy_cli;
 
-    // Extract project name and parent directory from the full path
+    // Extract project name and parent directory
     let Some(project_name) = editor_state.game_settings_dialog.get_project_name() else {
-        editor_state.error_message = Some("Invalid project path.".to_string());
+        editor_state.error_message = Some("Project name is required.".to_string());
         return;
     };
 
     let Some(parent_dir) = editor_state.game_settings_dialog.get_parent_dir() else {
-        editor_state.error_message =
-            Some("Invalid project path - no parent directory.".to_string());
+        editor_state.error_message = Some("Parent directory is required.".to_string());
         return;
     };
+
+    let full_path = parent_dir.join(&project_name);
+
+    // Check if directory already exists - Bevy CLI requires a fresh directory
+    if full_path.exists() {
+        editor_state.error_message = Some(format!(
+            "Directory '{}' already exists. Please choose a different project name.",
+            full_path.display()
+        ));
+        return;
+    }
 
     // Create parent directory if it doesn't exist
     if let Err(e) = std::fs::create_dir_all(&parent_dir) {
@@ -2110,6 +2126,12 @@ fn handle_create_game_project(editor_state: &mut EditorState) {
                 "Game project '{}' created successfully!",
                 project_name
             ));
+
+            // Auto-save the project path to config so code generation works immediately
+            project.game_config.project_path = Some(full_path);
+            project.game_config.project_name = project_name;
+            project.mark_dirty();
+
             // Force re-check of path status
             editor_state.game_settings_dialog.cli_installed = None;
         }
@@ -2207,14 +2229,27 @@ fn handle_preview_code(editor_state: &mut EditorState, project: &Project) {
         Err(e) => format!("// Error generating behaviors: {}", e),
     };
 
+    // Set the output path for "Open in VS Code" functionality
+    let output_path = project.game_config.project_path.as_ref().map(|game_path| {
+        game_path.join(&project.game_config.codegen_output_path)
+    });
+    editor_state.code_preview_dialog.output_path = output_path;
+
+    // Set VS Code path for opening files
+    editor_state.code_preview_dialog.vscode_path = project.game_config.vscode_path.clone();
+
+    // Check VS Code availability once when opening the dialog
+    editor_state.code_preview_dialog.vscode_available =
+        crate::external_editor::is_vscode_available(project.game_config.vscode_path.as_deref());
+
     editor_state
         .code_preview_dialog
         .set_content(entities, enums, stubs, behaviors);
     editor_state.code_preview_dialog.open = true;
 }
 
-/// Handle the "Open Game Project" action
-fn handle_open_game_project(editor_state: &mut EditorState, project: &Project) {
+/// Handle the "Open in VS Code" action
+fn handle_open_in_vscode(editor_state: &mut EditorState, project: &Project) {
     let Some(game_path) = &project.game_config.project_path else {
         editor_state.error_message = Some("Game project not configured.".to_string());
         return;
@@ -2226,9 +2261,28 @@ fn handle_open_game_project(editor_state: &mut EditorState, project: &Project) {
         return;
     }
 
-    let preferred = editor_state.game_settings_dialog.preferred_editor;
-    if let Err(e) = preferred.open(game_path) {
-        editor_state.error_message = Some(format!("Failed to open editor: {}", e));
+    // Use custom VS Code path if configured
+    let vscode_path = project.game_config.vscode_path.as_deref();
+    if let Err(e) = crate::external_editor::open_in_vscode_with_custom_path(game_path, vscode_path) {
+        editor_state.error_message = Some(format!("Failed to open VS Code: {}", e));
+    }
+}
+
+/// Handle the "Open Project Folder" action
+fn handle_open_project_folder(editor_state: &mut EditorState, project: &Project) {
+    let Some(game_path) = &project.game_config.project_path else {
+        editor_state.error_message = Some("Game project not configured.".to_string());
+        return;
+    };
+
+    if !game_path.exists() {
+        editor_state.error_message =
+            Some(format!("Game project path does not exist: {:?}", game_path));
+        return;
+    }
+
+    if let Err(e) = crate::external_editor::open_with_default(game_path) {
+        editor_state.error_message = Some(format!("Failed to open folder: {}", e));
     }
 }
 
