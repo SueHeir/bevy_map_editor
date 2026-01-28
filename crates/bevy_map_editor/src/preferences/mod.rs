@@ -25,6 +25,9 @@ pub struct EditorPreferences {
     /// Version for future migrations
     pub version: u32,
 
+    // App Settings
+    pub app_scale: f32,
+
     // UI Panel State
     pub show_tree_view: bool,
     pub show_inspector: bool,
@@ -81,6 +84,7 @@ impl Default for EditorPreferences {
     fn default() -> Self {
         Self {
             version: 1,
+            app_scale: 1.0,
             show_tree_view: true,
             show_inspector: true,
             tree_view_width: 200.0,

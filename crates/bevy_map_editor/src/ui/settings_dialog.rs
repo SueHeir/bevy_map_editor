@@ -25,6 +25,15 @@ pub fn render_settings_dialog(
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
         .show(ctx, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
+                // App Settings
+                ui.horizontal(|ui| {
+                    ui.label("App Scale:");
+                    ui.add(
+                        egui::Slider::new(&mut preferences.app_scale, 0.25..=4.0)
+                            .logarithmic(true),
+                    );
+                });
+
                 // Startup section
                 ui.heading("Startup");
                 ui.separator();
