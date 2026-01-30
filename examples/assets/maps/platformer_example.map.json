@@ -7677,12 +7677,14 @@
           ],
           "properties": {
             "sprite": {
-              "rows": 8,
+              "columns": 8,
               "pivot_x": 0.0,
               "animations": {
                 "run": {
-                  "loop_mode": "loop",
+                  "windows": [],
                   "frame_duration_ms": 100,
+                  "triggers": [],
+                  "loop_mode": "loop",
                   "frames": [
                     16,
                     17,
@@ -7700,29 +7702,27 @@
                     29,
                     30,
                     31
-                  ],
-                  "windows": [],
-                  "triggers": []
+                  ]
                 },
                 "idle": {
                   "loop_mode": "loop",
-                  "triggers": [],
-                  "frame_duration_ms": 100,
                   "frames": [
                     0,
                     1,
                     2,
                     3
                   ],
-                  "windows": []
+                  "windows": [],
+                  "frame_duration_ms": 100,
+                  "triggers": []
                 }
               },
-              "frame_height": 32,
-              "frame_width": 32,
-              "columns": 8,
-              "id": "181c2ab6-a6bf-4429-9a8f-2b306708ee55",
               "sheet_path": "C:\\Dev\\Workspace\\bevy_map_editor\\examples\\assets\\platformer_assets\\sprites\\knight.png",
               "name": "player_sheet",
+              "frame_height": 32,
+              "frame_width": 32,
+              "rows": 8,
+              "id": "181c2ab6-a6bf-4429-9a8f-2b306708ee55",
               "pivot_y": 0.0
             }
           }

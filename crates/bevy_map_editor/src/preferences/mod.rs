@@ -66,12 +66,6 @@ pub struct EditorPreferences {
     pub window_width: Option<f32>,
     /// Remembered window height (None = use default 1080)
     pub window_height: Option<f32>,
-    /// Remembered window X position in physical pixels
-    pub window_x: Option<i32>,
-    /// Remembered window Y position in physical pixels
-    pub window_y: Option<i32>,
-    /// Remembered window mode: "windowed", "borderless_fullscreen", "fullscreen"
-    pub window_mode: Option<String>,
 }
 
 /// A recent project entry
@@ -112,9 +106,6 @@ impl Default for EditorPreferences {
             trackpad_zoom_sensitivity: 1.0,
             window_width: None,
             window_height: None,
-            window_x: None,
-            window_y: None,
-            window_mode: None,
         }
     }
 }
