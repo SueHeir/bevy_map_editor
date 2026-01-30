@@ -273,6 +273,7 @@ fn handle_viewport_input(
     }
 
     // Handle panning (middle mouse only)
+    let window_size = Vec2::new(window.width(), window.height());
     if mouse_buttons.pressed(MouseButton::Middle) {
         if !input_state.is_panning {
             input_state.is_panning = true;
@@ -282,6 +283,7 @@ fn handle_viewport_input(
             editor_state.camera_offset.x -= delta.x / editor_state.zoom;
             editor_state.camera_offset.y += delta.y / editor_state.zoom;
             input_state.pan_start_pos = Some(cursor_position);
+            clamp_camera_to_level(&mut editor_state, &project, window_size);
         }
     } else {
         input_state.is_panning = false;
@@ -298,6 +300,8 @@ fn handle_viewport_input(
     // Determine if we're in rectangle mode for this tool
     let is_rectangle_mode =
         editor_state.tool_mode == ToolMode::Rectangle && editor_state.current_tool.supports_modes();
+    let is_line_mode =
+        editor_state.tool_mode == ToolMode::Line && editor_state.current_tool.supports_modes();
 
     // Handle painting/erasing/entity placement/selection with left mouse
     // Block input if pointer is over any UI panel
@@ -372,7 +376,7 @@ fn handle_viewport_input(
                 editor_state.tile_selection.drag_start = Some((tile_x, tile_y));
             }
             // For tools that support modes, start rectangle drawing if in Rectangle mode
-            EditorTool::Paint | EditorTool::Erase | EditorTool::Terrain if is_rectangle_mode => {
+            EditorTool::Paint | EditorTool::Erase | EditorTool::Terrain if is_rectangle_mode || is_line_mode => {
                 let tile_x = (world_pos.x / tile_size).floor() as i32;
                 let tile_y = (world_pos.y / tile_size).floor() as i32;
                 input_state.rect_start_tile = Some((tile_x, tile_y));
@@ -403,15 +407,29 @@ fn handle_viewport_input(
                     );
                 }
                 EditorTool::Paint | EditorTool::Erase => {
-                    fill_rectangle(
-                        &mut editor_state,
-                        &mut project,
-                        &mut render_state,
-                        start_x,
-                        start_y,
-                        end_x,
-                        end_y,
-                    );
+                    if editor_state.tool_mode == ToolMode::Line {
+                        fill_line(
+                            &mut editor_state,
+                            &mut project,
+                            &mut render_state,
+                            &mut history,
+                            start_x,
+                            start_y,
+                            end_x,
+                            end_y,
+                        );
+                    } else {
+                        fill_rectangle(
+                            &mut editor_state,
+                            &mut project,
+                            &mut render_state,
+                            &mut history,
+                            start_x,
+                            start_y,
+                            end_x,
+                            end_y,
+                        );
+                    }
                 }
                 EditorTool::Select => {
                     // Finalize marquee selection
@@ -594,7 +612,7 @@ fn handle_viewport_input(
         keyboard.pressed(KeyCode::ShiftLeft) || keyboard.pressed(KeyCode::ShiftRight);
 
     // Point mode painting (continuous while dragging)
-    if mouse_buttons.pressed(MouseButton::Left) && !input_state.is_panning && !is_rectangle_mode {
+    if mouse_buttons.pressed(MouseButton::Left) && !input_state.is_panning && !is_rectangle_mode && !is_line_mode {
         match editor_state.current_tool {
             EditorTool::Paint => {
                 // Get current tile position for line brush anchor tracking
@@ -752,6 +770,31 @@ fn get_tile_size(editor_state: &EditorState, project: &Project) -> f32 {
         .unwrap_or(32.0)
 }
 
+/// Clamp camera offset so it doesn't pan too far beyond the level boundaries.
+/// Allows up to one viewport-worth of padding beyond the level edges.
+fn clamp_camera_to_level(editor_state: &mut EditorState, project: &Project, window_size: Vec2) {
+    let level = editor_state
+        .selected_level
+        .and_then(|id| project.levels.iter().find(|l| l.id == id));
+    let Some(level) = level else { return };
+
+    let tile_size = get_tile_size(editor_state, project);
+    let level_pixel_w = level.width as f32 * tile_size;
+    let level_pixel_h = level.height as f32 * tile_size;
+
+    // Allow panning one viewport-width/height beyond the level in each direction
+    let margin_x = window_size.x / editor_state.zoom;
+    let margin_y = window_size.y / editor_state.zoom;
+
+    let min_x = -margin_x;
+    let max_x = level_pixel_w + margin_x;
+    let min_y = -margin_y;
+    let max_y = level_pixel_h + margin_y;
+
+    editor_state.camera_offset.x = editor_state.camera_offset.x.clamp(min_x, max_x);
+    editor_state.camera_offset.y = editor_state.camera_offset.y.clamp(min_y, max_y);
+}
+
 /// System to handle zoom input (scroll wheel and keyboard +/-)
 fn handle_zoom_input(
     mut contexts: EguiContexts,
@@ -760,6 +803,7 @@ fn handle_zoom_input(
     windows: Query<&Window>,
     keyboard: Res<ButtonInput<KeyCode>>,
     preferences: Res<EditorPreferences>,
+    project: Res<Project>,
 ) {
     let Ok(ctx) = contexts.ctx_mut() else { return };
     let Ok(window) = windows.single() else { return };
@@ -819,6 +863,8 @@ fn handle_zoom_input(
                     event.x * base_speed * preferences.trackpad_pan_sensitivity / editor_state.zoom;
                 editor_state.camera_offset.y +=
                     event.y * base_speed * preferences.trackpad_pan_sensitivity / editor_state.zoom;
+                let window_size = Vec2::new(window.width(), window.height());
+                clamp_camera_to_level(&mut editor_state, &project, window_size);
             }
         } else {
             // Default mode: scroll = zoom
@@ -1689,6 +1735,7 @@ fn fill_rectangle(
     editor_state: &mut EditorState,
     project: &mut Project,
     render_state: &mut RenderState,
+    history: &mut CommandHistory,
     start_x: i32,
     start_y: i32,
     end_x: i32,
@@ -1708,19 +1755,35 @@ fn fill_rectangle(
 
     let tile_index = editor_state.selected_tile;
     let selected_tileset = editor_state.selected_tileset;
+    let is_erase = editor_state.current_tool == EditorTool::Erase;
 
-    let Some(level) = project.get_level_mut(level_id) else {
-        return;
+    let (level_width, level_height) = {
+        let Some(level) = project.get_level_mut(level_id) else {
+            return;
+        };
+        (level.width as i32, level.height as i32)
     };
-    let level_width = level.width as i32;
-    let level_height = level.height as i32;
 
     let min_x = start_x.min(end_x).max(0);
     let max_x = start_x.max(end_x).min(level_width - 1);
     let min_y = start_y.min(end_y).max(0);
     let max_y = start_y.max(end_y).min(level_height - 1);
 
-    if let (Some(tile_idx), Some(sel_tileset)) = (tile_index, selected_tileset) {
+    // Collect tiles before modification for undo
+    let before = collect_tiles_in_region(project, level_id, layer_idx, min_x, max_x, min_y, max_y);
+
+    let Some(level) = project.get_level_mut(level_id) else {
+        return;
+    };
+
+    if is_erase {
+        // Erase tool always clears tiles
+        for y in min_y..=max_y {
+            for x in min_x..=max_x {
+                level.set_tile(layer_idx, x as u32, y as u32, None);
+            }
+        }
+    } else if let (Some(tile_idx), Some(sel_tileset)) = (tile_index, selected_tileset) {
         let (has_tiles, layer_tileset) = level
             .layers
             .get(layer_idx)
@@ -1754,6 +1817,132 @@ fn fill_rectangle(
 
     project.mark_dirty();
     render_state.needs_rebuild = true;
+
+    // Collect tiles after modification and push undo command
+    let after = collect_tiles_in_region(project, level_id, layer_idx, min_x, max_x, min_y, max_y);
+    let description = if is_erase {
+        "Rectangle erase"
+    } else {
+        "Rectangle fill"
+    };
+    let command = BatchTileCommand::from_diff(level_id, layer_idx, before, after, description);
+    if !command.changes.is_empty() {
+        history.push_undo(Box::new(command));
+    }
+}
+
+/// Fill tiles along a line using Bresenham's algorithm
+fn fill_line(
+    editor_state: &mut EditorState,
+    project: &mut Project,
+    render_state: &mut RenderState,
+    history: &mut CommandHistory,
+    start_x: i32,
+    start_y: i32,
+    end_x: i32,
+    end_y: i32,
+) {
+    let Some(level_id) = editor_state.selected_level else {
+        return;
+    };
+    let Some(layer_idx) = editor_state.selected_layer else {
+        return;
+    };
+
+    if !is_tile_layer(project, level_id, layer_idx) {
+        return;
+    }
+
+    let tile_index = editor_state.selected_tile;
+    let selected_tileset = editor_state.selected_tileset;
+    let is_erase = editor_state.current_tool == EditorTool::Erase;
+
+    let points = bresenham_line(start_x, start_y, end_x, end_y);
+
+    // Collect before-state for undo
+    let mut before = HashMap::new();
+    if let Some(level) = project.levels.iter().find(|l| l.id == level_id) {
+        if let Some(layer) = level.layers.get(layer_idx) {
+            if let LayerData::Tiles { tiles, .. } = &layer.data {
+                for &(x, y) in &points {
+                    if x >= 0 && y >= 0 && x < level.width as i32 && y < level.height as i32 {
+                        let idx = (y as u32 * level.width + x as u32) as usize;
+                        let tile = tiles.get(idx).copied().flatten();
+                        before.insert((x as u32, y as u32), tile);
+                    }
+                }
+            }
+        }
+    }
+
+    let Some(level) = project.get_level_mut(level_id) else {
+        return;
+    };
+    let level_width = level.width as i32;
+    let level_height = level.height as i32;
+
+    if is_erase {
+        for &(x, y) in &points {
+            if x >= 0 && y >= 0 && x < level_width && y < level_height {
+                level.set_tile(layer_idx, x as u32, y as u32, None);
+            }
+        }
+    } else if let (Some(tile_idx), Some(sel_tileset)) = (tile_index, selected_tileset) {
+        let (has_tiles, layer_tileset) = level
+            .layers
+            .get(layer_idx)
+            .map(|layer| (layer_has_tiles(layer), get_layer_tileset_id(layer)))
+            .unwrap_or((false, None));
+
+        if has_tiles {
+            if layer_tileset != Some(sel_tileset) {
+                return;
+            }
+        } else {
+            if let Some(layer) = level.layers.get_mut(layer_idx) {
+                if let LayerData::Tiles { tileset_id, .. } = &mut layer.data {
+                    *tileset_id = sel_tileset;
+                }
+            }
+        }
+
+        for &(x, y) in &points {
+            if x >= 0 && y >= 0 && x < level_width && y < level_height {
+                level.set_tile(layer_idx, x as u32, y as u32, Some(tile_idx));
+            }
+        }
+    } else {
+        for &(x, y) in &points {
+            if x >= 0 && y >= 0 && x < level_width && y < level_height {
+                level.set_tile(layer_idx, x as u32, y as u32, None);
+            }
+        }
+    }
+
+    project.mark_dirty();
+    render_state.needs_rebuild = true;
+
+    // Collect after-state and push undo
+    let mut after = HashMap::new();
+    if let Some(level) = project.levels.iter().find(|l| l.id == level_id) {
+        if let Some(layer) = level.layers.get(layer_idx) {
+            if let LayerData::Tiles { tiles, .. } = &layer.data {
+                for &(x, y) in &points {
+                    if x >= 0 && y >= 0 && x < level.width as i32 && y < level.height as i32 {
+                        let idx = (y as u32 * level.width + x as u32) as usize;
+                        let tile = tiles.get(idx).copied().flatten();
+                        after.insert((x as u32, y as u32), tile);
+                    }
+                }
+            }
+        }
+    }
+
+    let description = if is_erase { "Line erase" } else { "Line fill" };
+    let command = BatchTileCommand::from_diff(level_id, layer_idx, before, after, description);
+    if !command.changes.is_empty() {
+        history.push_undo(Box::new(command));
+    }
 }
 
 /// Flood fill an area with the selected tile (bucket fill)
@@ -2532,7 +2721,7 @@ fn finalize_paint_stroke(
             {
                 let mut inverse_changes = HashMap::new();
                 for ((x, y), (old_tile, new_tile)) in &stroke_tracker.changes {
-                    inverse_changes.insert((*x, *y), (*new_tile, *old_tile));
+                    inverse_changes.insert((*x, *y), (*old_tile, *new_tile));
                 }
 
                 let inverse_command = BatchTileCommand::new(

@@ -35,6 +35,8 @@ pub enum ToolMode {
     Point,
     /// Rectangle fill (drag to define area)
     Rectangle,
+    /// Line drawing (drag to define line)
+    Line,
 }
 
 impl ToolMode {
@@ -42,6 +44,7 @@ impl ToolMode {
         match self {
             ToolMode::Point => "Point",
             ToolMode::Rectangle => "Rect",
+            ToolMode::Line => "Line",
         }
     }
 }
@@ -142,6 +145,11 @@ pub fn render_toolbar(ctx: &egui::Context, editor_state: &mut EditorState) {
                             &mut editor_state.tool_mode,
                             ToolMode::Rectangle,
                             ToolMode::Rectangle.label(),
+                        );
+                        ui.selectable_value(
+                            &mut editor_state.tool_mode,
+                            ToolMode::Line,
+                            ToolMode::Line.label(),
                         );
                     });
 

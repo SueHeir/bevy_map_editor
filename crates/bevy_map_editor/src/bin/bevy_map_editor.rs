@@ -5,6 +5,7 @@
 
 use bevy::asset::{AssetPlugin, UnapprovedPathMode};
 use bevy::image::{ImageFilterMode, ImageSamplerDescriptor};
+use bevy::ecs::message::MessageReader;
 use bevy::prelude::*;
 use bevy::window::WindowResolution;
 use bevy_map_editor::preferences::EditorPreferences;
@@ -13,6 +14,11 @@ use bevy_map_editor::EditorPlugin;
 use std::path::PathBuf;
 
 fn main() {
+    // Load preferences early to get saved window size
+    let preferences = EditorPreferences::load();
+    let window_width = preferences.window_width.unwrap_or(1920.0) as u32;
+    let window_height = preferences.window_height.unwrap_or(1080.0) as u32;
+
     App::new()
         .add_plugins(
             DefaultPlugins
@@ -20,7 +26,7 @@ fn main() {
                     primary_window: Some(Window {
                         title: "Bevy Map Editor".to_string(),
                         // High DPI support: prevent OS-level scaling that causes blurriness
-                        resolution: WindowResolution::new(1920, 1080)
+                        resolution: WindowResolution::new(window_width, window_height)
                             .with_scale_factor_override(1.0),
                         ..default()
                     }),
@@ -44,6 +50,7 @@ fn main() {
         )
         .add_plugins(EditorPlugin::default())
         .add_systems(Startup, auto_open_last_project)
+        .add_systems(Last, save_window_size_on_exit)
         .run();
 }
 
@@ -70,6 +77,24 @@ fn auto_open_last_project(mut project: ResMut<Project>, preferences: Res<EditorP
                 "Last project file not found: {} ({})",
                 recent.name, recent.path
             );
+        }
+    }
+}
+
+/// Save window size to preferences when the app exits
+fn save_window_size_on_exit(
+    mut exit_events: MessageReader<AppExit>,
+    windows: Query<&Window>,
+    mut preferences: ResMut<EditorPreferences>,
+) {
+    if exit_events.read().next().is_none() {
+        return;
+    }
+    if let Ok(window) = windows.single() {
+        preferences.window_width = Some(window.resolution.width());
+        preferences.window_height = Some(window.resolution.height());
+        if let Err(e) = preferences.save() {
+            error!("Failed to save window size to preferences: {}", e);
         }
     }
 }
