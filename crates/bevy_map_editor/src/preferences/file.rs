@@ -77,7 +77,7 @@ impl EditorPreferences {
 
         std::fs::write(&path, content).map_err(|e| PreferencesError::IoError(e.to_string()))?;
 
-        bevy::log::info!("Saved preferences to {:?}", path);
+        bevy::log::debug!("Saved preferences to {:?}", path);
         Ok(())
     }
 }

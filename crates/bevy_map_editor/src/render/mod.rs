@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::project::Project;
-use crate::tools::ViewportInputState;
+use crate::tools::{bresenham_line, ViewportInputState};
 use crate::ui::{EditorTool, EntityTextureCache, Selection, TilesetTextureCache, ToolMode};
 use crate::EditorState;
 use bevy_map_schema::ViewportDisplayMode;
@@ -1101,10 +1101,13 @@ fn sync_selection_preview(
         return;
     };
 
-    // Only show preview when actively drawing in Rectangle mode
+    // Only show preview when actively drawing in Rectangle or Line mode
     let is_rectangle_mode =
         editor_state.tool_mode == ToolMode::Rectangle && editor_state.current_tool.supports_modes();
-    if !is_rectangle_mode || !input_state.is_drawing_rect {
+    let is_line_mode =
+        editor_state.tool_mode == ToolMode::Line && editor_state.current_tool.supports_modes();
+
+    if !(is_rectangle_mode || is_line_mode) || !input_state.is_drawing_rect {
         return;
     }
 
@@ -1123,23 +1126,6 @@ fn sync_selection_preview(
     let end_x = (current_pos.x / tile_size).floor() as i32;
     let end_y = (current_pos.y / tile_size).floor() as i32;
 
-    // Normalize bounds
-    let min_x = start_x.min(end_x);
-    let max_x = start_x.max(end_x);
-    let min_y = start_y.min(end_y);
-    let max_y = start_y.max(end_y);
-
-    // Calculate world coordinates for the rectangle
-    let world_min_x = min_x as f32 * tile_size;
-    let world_max_x = (max_x + 1) as f32 * tile_size;
-    let world_min_y = min_y as f32 * tile_size;
-    let world_max_y = (max_y + 1) as f32 * tile_size;
-
-    let width = world_max_x - world_min_x;
-    let height = world_max_y - world_min_y;
-    let center_x = world_min_x + width / 2.0;
-    let center_y = world_min_y + height / 2.0;
-
     // Choose color based on whether we're filling or erasing
     let color = if editor_state.selected_tile.is_some() {
         Color::srgba(0.2, 0.4, 0.8, 0.4) // Blue for fill
@@ -1147,16 +1133,49 @@ fn sync_selection_preview(
         Color::srgba(0.8, 0.2, 0.2, 0.4) // Red for erase
     };
 
-    // Spawn the preview rectangle
-    commands.spawn((
-        Sprite {
-            color,
-            custom_size: Some(Vec2::new(width, height)),
-            ..default()
-        },
-        Transform::from_xyz(center_x, center_y, 200.0), // High Z to render on top
-        SelectionPreview,
-    ));
+    if is_line_mode {
+        // Spawn a preview sprite for each tile along the line
+        let line_points = bresenham_line(start_x, start_y, end_x, end_y);
+        for (tx, ty) in line_points {
+            let center_x = (tx as f32 + 0.5) * tile_size;
+            let center_y = (ty as f32 + 0.5) * tile_size;
+            commands.spawn((
+                Sprite {
+                    color,
+                    custom_size: Some(Vec2::new(tile_size, tile_size)),
+                    ..default()
+                },
+                Transform::from_xyz(center_x, center_y, 200.0),
+                SelectionPreview,
+            ));
+        }
+    } else {
+        // Rectangle preview
+        let min_x = start_x.min(end_x);
+        let max_x = start_x.max(end_x);
+        let min_y = start_y.min(end_y);
+        let max_y = start_y.max(end_y);
+
+        let world_min_x = min_x as f32 * tile_size;
+        let world_max_x = (max_x + 1) as f32 * tile_size;
+        let world_min_y = min_y as f32 * tile_size;
+        let world_max_y = (max_y + 1) as f32 * tile_size;
+
+        let width = world_max_x - world_min_x;
+        let height = world_max_y - world_min_y;
+        let center_x = world_min_x + width / 2.0;
+        let center_y = world_min_y + height / 2.0;
+
+        commands.spawn((
+            Sprite {
+                color,
+                custom_size: Some(Vec2::new(width, height)),
+                ..default()
+            },
+            Transform::from_xyz(center_x, center_y, 200.0),
+            SelectionPreview,
+        ));
+    }
 }
 
 /// Get the tile size for the current level/layer/tileset (for preview rendering)

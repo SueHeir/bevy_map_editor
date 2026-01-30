@@ -63,6 +63,12 @@ pub struct EditorPreferences {
     pub trackpad_pan_sensitivity: f32,
     /// Zoom sensitivity for trackpad mode (multiplier, default 1.0)
     pub trackpad_zoom_sensitivity: f32,
+
+    // Window settings
+    /// Remembered window width (None = use default 1920)
+    pub window_width: Option<f32>,
+    /// Remembered window height (None = use default 1080)
+    pub window_height: Option<f32>,
 }
 
 /// A recent project entry
@@ -100,8 +106,10 @@ impl Default for EditorPreferences {
             keybindings: HashMap::new(),
             theme: ThemeSettings::default(),
             trackpad_mode: false,
-            trackpad_pan_sensitivity: 1.0,
+            trackpad_pan_sensitivity: 0.5,
             trackpad_zoom_sensitivity: 1.0,
+            window_width: None,
+            window_height: None,
         }
     }
 }
