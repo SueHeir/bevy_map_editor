@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::project::Project;
-use crate::tools::{ViewportInputState, bresenham_line};
+use crate::tools::{bresenham_line, ViewportInputState};
 use crate::ui::{EditorTool, EntityTextureCache, Selection, TilesetTextureCache, ToolMode};
 use crate::EditorState;
 use bevy_map_schema::ViewportDisplayMode;

@@ -4,10 +4,13 @@
 //! Run with: bevy_map_editor
 
 use bevy::asset::{AssetPlugin, UnapprovedPathMode};
-use bevy::image::{ImageFilterMode, ImageSamplerDescriptor};
 use bevy::ecs::message::MessageReader;
+use bevy::image::{ImageFilterMode, ImageSamplerDescriptor};
 use bevy::prelude::*;
-use bevy::window::{MonitorSelection, VideoModeSelection, WindowMode, WindowMoved, WindowPosition, WindowResized, WindowResolution};
+use bevy::window::{
+    MonitorSelection, VideoModeSelection, WindowMode, WindowMoved, WindowPosition, WindowResized,
+    WindowResolution,
+};
 use bevy_map_editor::preferences::EditorPreferences;
 use bevy_map_editor::project::Project;
 use bevy_map_editor::EditorPlugin;
@@ -25,8 +28,12 @@ fn main() {
     };
 
     let window_mode = match preferences.window_mode.as_deref() {
-        Some("borderless_fullscreen") => WindowMode::BorderlessFullscreen(MonitorSelection::Current),
-        Some("fullscreen") => WindowMode::Fullscreen(MonitorSelection::Current, VideoModeSelection::Current),
+        Some("borderless_fullscreen") => {
+            WindowMode::BorderlessFullscreen(MonitorSelection::Current)
+        }
+        Some("fullscreen") => {
+            WindowMode::Fullscreen(MonitorSelection::Current, VideoModeSelection::Current)
+        }
         _ => WindowMode::Windowed,
     };
 

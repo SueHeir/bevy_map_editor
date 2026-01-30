@@ -374,7 +374,9 @@ fn handle_viewport_input(
                 editor_state.tile_selection.drag_start = Some((tile_x, tile_y));
             }
             // For tools that support modes, start rectangle drawing if in Rectangle mode
-            EditorTool::Paint | EditorTool::Erase | EditorTool::Terrain if is_rectangle_mode || is_line_mode => {
+            EditorTool::Paint | EditorTool::Erase | EditorTool::Terrain
+                if is_rectangle_mode || is_line_mode =>
+            {
                 let tile_x = (world_pos.x / tile_size).floor() as i32;
                 let tile_y = (world_pos.y / tile_size).floor() as i32;
                 input_state.rect_start_tile = Some((tile_x, tile_y));
@@ -606,7 +608,11 @@ fn handle_viewport_input(
     }
 
     // Point mode painting (continuous while dragging)
-    if mouse_buttons.pressed(MouseButton::Left) && !input_state.is_panning && !is_rectangle_mode && !is_line_mode {
+    if mouse_buttons.pressed(MouseButton::Left)
+        && !input_state.is_panning
+        && !is_rectangle_mode
+        && !is_line_mode
+    {
         match editor_state.current_tool {
             EditorTool::Paint => {
                 paint_tile(
