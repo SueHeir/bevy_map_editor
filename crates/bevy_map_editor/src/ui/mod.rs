@@ -48,7 +48,9 @@ pub use tree_view::{render_tree_view, TreeViewResult};
 pub use world_view::{render_new_level_dialog, render_world_view, NewLevelParams, WorldViewResult};
 
 use bevy::prelude::*;
-use bevy_egui::{egui, EguiContexts, EguiPrimaryContextPass, EguiTextureHandle};
+use bevy_egui::{
+    egui, EguiContextSettings, EguiContexts, EguiPrimaryContextPass, EguiTextureHandle,
+};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use uuid::Uuid;
@@ -571,8 +573,13 @@ fn render_ui(
     history: Res<CommandHistory>,
     clipboard: Res<TileClipboard>,
     mut ui_hover_state: ResMut<UiHoverState>,
+    egui_settings: Query<&mut EguiContextSettings>,
 ) {
     let Ok(ctx) = contexts.ctx_mut() else { return };
+
+    for mut egui_settings in egui_settings {
+        egui_settings.scale_factor = preferences.app_scale;
+    }
 
     // Reset hover states at start of frame
     *ui_hover_state = UiHoverState::default();
