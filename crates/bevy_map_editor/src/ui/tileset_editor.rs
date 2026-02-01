@@ -1357,7 +1357,6 @@ fn render_tile_properties_tab(
                             }
                         });
 
-
                         // Collision Mask
                         let mut mask = collision_data.mask;
                         ui.horizontal(|ui| {
@@ -3020,7 +3019,6 @@ fn render_collision_properties(
             }
         }
     });
-
 
     // Collision mask
     let mut mask = collision_data.mask;
