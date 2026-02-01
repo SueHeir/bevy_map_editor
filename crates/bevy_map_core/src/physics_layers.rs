@@ -13,14 +13,9 @@ pub struct PhysicsLayers {
     pub layers: Vec<PhysicsLayerSet>,
 }
 
-
-
-
 impl PhysicsLayers {
     pub fn new() -> Self {
-        Self {
-            layers: Vec::new(),
-        }
+        Self { layers: Vec::new() }
     }
 
     /// Add a physics layer set
@@ -64,7 +59,6 @@ pub struct PhysicsLayerSet {
     pub tile_physics: HashMap<u32, CollisionData>,
 }
 
-
 impl PhysicsLayerSet {
     /// Create a new physics layer set
     pub fn new(name: String, layer: u8, mask: u32, debug_color: [u8; 3]) -> Self {
@@ -77,7 +71,6 @@ impl PhysicsLayerSet {
             tile_physics: HashMap::new(),
         }
     }
-
 
     /// Assign collision data to a tile index
     pub fn assign_tile_physics(&mut self, tile_index: u32, collision: CollisionData) {

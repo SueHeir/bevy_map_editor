@@ -782,8 +782,6 @@ impl Default for EditorState {
             new_physics_layer_layer: 0,
             new_physics_layer_debug_color: Color::srgba(0.2, 0.6, 1.0, 0.3),
 
-
-            
             show_spritesheet_editor: false,
             spritesheet_editor_state: SpriteSheetEditorState::new(),
 

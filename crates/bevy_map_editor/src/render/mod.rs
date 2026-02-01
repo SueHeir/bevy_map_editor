@@ -922,12 +922,13 @@ fn sync_collision_rendering(
                         // Check if this tile has collision
 
                         for physics_layer in tileset.physics_layers.layers.iter() {
-                            if let Some(collision) = tileset.get_tile_collision(tile_index, physics_layer.id) {
+                            if let Some(collision) =
+                                tileset.get_tile_collision(tile_index, physics_layer.id)
+                            {
                                 if collision.has_collision() {
-
                                     let color = Color::srgba_u8(
-                                        physics_layer.debug_color[0] ,
-                                        physics_layer.debug_color[1] ,
+                                        physics_layer.debug_color[0],
+                                        physics_layer.debug_color[1],
                                         physics_layer.debug_color[2],
                                         200, // Alpha value
                                     );
@@ -944,9 +945,7 @@ fn sync_collision_rendering(
                                     );
                                 }
                             }
-                        
                         }
-                       
                     }
                 }
             }

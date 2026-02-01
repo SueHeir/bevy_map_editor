@@ -1208,7 +1208,11 @@ fn render_tile_properties_tab(
         return;
     };
 
-    let Some(physics_layer_id) = editor_state.tileset_editor_state.collision_editor.selected_physics_layer else {
+    let Some(physics_layer_id) = editor_state
+        .tileset_editor_state
+        .collision_editor
+        .selected_physics_layer
+    else {
         ui.label("No physics layer selected");
         return;
     };
@@ -1279,7 +1283,11 @@ fn render_tile_properties_tab(
                         if let Some(tileset) =
                             project.tilesets.iter_mut().find(|t| t.id == tileset_id)
                         {
-                            tileset.set_tile_full_collision(tile_idx, has_collision, physics_layer_id);
+                            tileset.set_tile_full_collision(
+                                tile_idx,
+                                has_collision,
+                                physics_layer_id,
+                            );
                             project.mark_dirty();
                         }
                     }
@@ -1964,7 +1972,6 @@ fn render_collision_tab(
         return;
     }
 
-
     egui::SidePanel::left("Physics_list_panel")
         .resizable(true)
         .show_inside(ui, |ui| {
@@ -1974,14 +1981,25 @@ fn render_collision_tab(
                     ui.heading("Physics Layer Sets");
 
                     // List terrain sets for this tileset
-                    let physics_layers = project.tilesets.iter().find(|t| t.id == tileset_id).map(|t| &t.physics_layers);
-                    
+                    let physics_layers = project
+                        .tilesets
+                        .iter()
+                        .find(|t| t.id == tileset_id)
+                        .map(|t| &t.physics_layers);
+
                     if let Some(physics_layers) = physics_layers {
                         for p in physics_layers.layers.iter() {
                             ui.horizontal(|ui| {
-                                let selected = editor_state.tileset_editor_state.collision_editor.selected_physics_layer == Some(p.id);
+                                let selected = editor_state
+                                    .tileset_editor_state
+                                    .collision_editor
+                                    .selected_physics_layer
+                                    == Some(p.id);
                                 if ui.selectable_label(selected, &p.name).clicked() {
-                                    editor_state.tileset_editor_state.collision_editor.selected_physics_layer = Some(p.id);
+                                    editor_state
+                                        .tileset_editor_state
+                                        .collision_editor
+                                        .selected_physics_layer = Some(p.id);
                                 }
                                 ui.small(format!("Layer: {} Mask: {}", p.layer, p.mask));
                             });
@@ -2162,12 +2180,19 @@ fn render_collision_tile_selector(
     let display_size = egui::vec2(tile_size * zoom, tile_size * zoom);
     let mut virtual_offset = 0u32;
 
-    let Some(physics_layer_id) = editor_state.tileset_editor_state.collision_editor.selected_physics_layer else {
+    let Some(physics_layer_id) = editor_state
+        .tileset_editor_state
+        .collision_editor
+        .selected_physics_layer
+    else {
         ui.label("No physics layer selected");
         return;
     };
 
-    let Some(physics_color) = project.tilesets.iter().find(|t| t.id == tileset_id)
+    let Some(physics_color) = project
+        .tilesets
+        .iter()
+        .find(|t| t.id == tileset_id)
         .and_then(|t| t.physics_layers.get_physics_layer(physics_layer_id))
         .map(|layer| layer.debug_color)
     else {
@@ -2207,7 +2232,6 @@ fn render_collision_tile_selector(
                             .and_then(|t| t.physics_layers.get_physics_layer(physics_layer_id))
                             .and_then(|layer| layer.get_tile_physics(virtual_index))
                             .map(|data| data.shape.clone());
-                        
 
                         let (rect, response) =
                             ui.allocate_exact_size(display_size, egui::Sense::click());
@@ -2251,7 +2275,12 @@ fn render_collision_tile_selector(
 
                         // Draw collision shape preview on tile
                         if let Some(ref shape) = collision_shape {
-                            draw_collision_shape_on_canvas(ui.painter(), rect, shape, physics_color);
+                            draw_collision_shape_on_canvas(
+                                ui.painter(),
+                                rect,
+                                shape,
+                                physics_color,
+                            );
                         }
 
                         if response.clicked() {
@@ -2306,12 +2335,19 @@ fn render_collision_canvas(
         return;
     };
 
-    let Some(physics_layer_id) = editor_state.tileset_editor_state.collision_editor.selected_physics_layer else {
+    let Some(physics_layer_id) = editor_state
+        .tileset_editor_state
+        .collision_editor
+        .selected_physics_layer
+    else {
         ui.label("No physics layer selected");
         return;
     };
 
-    let Some(physics_color) = project.tilesets.iter().find(|t| t.id == tileset_id)
+    let Some(physics_color) = project
+        .tilesets
+        .iter()
+        .find(|t| t.id == tileset_id)
         .and_then(|t| t.physics_layers.get_physics_layer(physics_layer_id))
         .map(|layer| layer.debug_color)
     else {
@@ -2404,7 +2440,6 @@ fn render_collision_canvas(
         .map(|data| data.clone())
         .unwrap_or_default();
 
-
     // 4. Draw collision shape overlay (skip if dragging vertex - preview handles it)
     let is_dragging_vertex = matches!(
         &editor_state
@@ -2417,7 +2452,12 @@ fn render_collision_canvas(
         })
     );
     if !is_dragging_vertex {
-        draw_collision_shape_on_canvas(ui.painter(), canvas_rect, &collision_data.shape, physics_color);
+        draw_collision_shape_on_canvas(
+            ui.painter(),
+            canvas_rect,
+            &collision_data.shape,
+            physics_color,
+        );
     }
 
     // 5. Draw drag handles in select mode (skip if dragging vertex - preview handles it)
@@ -2559,7 +2599,11 @@ fn handle_collision_canvas_input(
         .collision_editor
         .drawing_mode;
 
-    let Some(physics_layer_id) = editor_state.tileset_editor_state.collision_editor.selected_physics_layer else {
+    let Some(physics_layer_id) = editor_state
+        .tileset_editor_state
+        .collision_editor
+        .selected_physics_layer
+    else {
         return;
     };
 
@@ -2575,7 +2619,11 @@ fn handle_collision_canvas_input(
                 points: polygon_points.clone(),
             };
             if let Some(tileset) = project.tilesets.iter_mut().find(|t| t.id == tileset_id) {
-                if let Some(physics_layer_id) = editor_state.tileset_editor_state.collision_editor.selected_physics_layer {
+                if let Some(physics_layer_id) = editor_state
+                    .tileset_editor_state
+                    .collision_editor
+                    .selected_physics_layer
+                {
                     tileset.set_tile_collision_shape(tile_idx, shape, physics_layer_id);
                     project.mark_dirty();
                 }
@@ -2741,7 +2789,11 @@ fn handle_collision_canvas_input(
                         if let Some(tileset) =
                             project.tilesets.iter_mut().find(|t| t.id == tileset_id)
                         {
-                            if let Some(physics_layer_id) = editor_state.tileset_editor_state.collision_editor.selected_physics_layer {
+                            if let Some(physics_layer_id) = editor_state
+                                .tileset_editor_state
+                                .collision_editor
+                                .selected_physics_layer
+                            {
                                 tileset.set_tile_collision_shape(tile_idx, shape, physics_layer_id);
                                 project.mark_dirty();
                             }
@@ -2761,7 +2813,11 @@ fn handle_collision_canvas_input(
                         if let Some(tileset) =
                             project.tilesets.iter_mut().find(|t| t.id == tileset_id)
                         {
-                            if let Some(physics_layer_id) = editor_state.tileset_editor_state.collision_editor.selected_physics_layer {
+                            if let Some(physics_layer_id) = editor_state
+                                .tileset_editor_state
+                                .collision_editor
+                                .selected_physics_layer
+                            {
                                 tileset.set_tile_collision_shape(tile_idx, shape, physics_layer_id);
                                 project.mark_dirty();
                             }
@@ -2837,22 +2893,22 @@ fn handle_collision_canvas_input(
             CollisionDragOperation::MoveVertex { index, .. } => {
                 // Draw the polygon with the dragged vertex at its new position
                 if let Some(tileset) = project.tilesets.iter().find(|t| t.id == tileset_id) {
-
-                    let collision_shape = tileset.physics_layers.get_physics_layer(physics_layer_id)
+                    let collision_shape = tileset
+                        .physics_layers
+                        .get_physics_layer(physics_layer_id)
                         .and_then(|layer| layer.get_tile_physics(tile_idx))
                         .map(|data| data.shape.clone());
 
-                    let Some(physics_color) = 
-                        tileset.physics_layers.get_physics_layer(physics_layer_id)
+                    let Some(physics_color) = tileset
+                        .physics_layers
+                        .get_physics_layer(physics_layer_id)
                         .map(|layer| layer.debug_color)
                     else {
                         return;
                     };
 
                     if let Some(shape) = collision_shape {
-                        if let bevy_map_core::CollisionShape::Polygon { points } =
-                            &shape
-                        {
+                        if let bevy_map_core::CollisionShape::Polygon { points } = &shape {
                             // Create a temporary copy with the moved vertex
                             let mut preview_points = points.clone();
                             if *index < preview_points.len() {
@@ -2870,7 +2926,7 @@ fn handle_collision_canvas_input(
                                 ui.painter(),
                                 canvas_rect,
                                 &preview_shape,
-                                physics_color
+                                physics_color,
                             );
                             draw_collision_handles(ui.painter(), canvas_rect, &preview_shape);
                         }
@@ -3059,7 +3115,11 @@ fn render_collision_properties(
         return;
     };
 
-    let Some(physics_layer_id) = editor_state.tileset_editor_state.collision_editor.selected_physics_layer else {
+    let Some(physics_layer_id) = editor_state
+        .tileset_editor_state
+        .collision_editor
+        .selected_physics_layer
+    else {
         ui.label("No physics layer selected");
         return;
     };
@@ -3145,8 +3205,16 @@ fn render_collision_properties(
     // Action buttons
     if ui.button("Set Full Collision").clicked() {
         if let Some(tileset) = project.tilesets.iter_mut().find(|t| t.id == tileset_id) {
-            if let Some(physics_layer_id) = editor_state.tileset_editor_state.collision_editor.selected_physics_layer {
-                tileset.set_tile_collision_shape(tile_idx, bevy_map_core::CollisionShape::Full, physics_layer_id);
+            if let Some(physics_layer_id) = editor_state
+                .tileset_editor_state
+                .collision_editor
+                .selected_physics_layer
+            {
+                tileset.set_tile_collision_shape(
+                    tile_idx,
+                    bevy_map_core::CollisionShape::Full,
+                    physics_layer_id,
+                );
                 project.mark_dirty();
             }
         }
@@ -3154,8 +3222,16 @@ fn render_collision_properties(
 
     if ui.button("Clear Collision").clicked() {
         if let Some(tileset) = project.tilesets.iter_mut().find(|t| t.id == tileset_id) {
-            if let Some(physics_layer_id) = editor_state.tileset_editor_state.collision_editor.selected_physics_layer {
-                tileset.set_tile_collision_shape(tile_idx, bevy_map_core::CollisionShape::None, physics_layer_id);
+            if let Some(physics_layer_id) = editor_state
+                .tileset_editor_state
+                .collision_editor
+                .selected_physics_layer
+            {
+                tileset.set_tile_collision_shape(
+                    tile_idx,
+                    bevy_map_core::CollisionShape::None,
+                    physics_layer_id,
+                );
                 project.mark_dirty();
             }
         }
@@ -3251,10 +3327,6 @@ fn point_to_segment_distance(p: &[f32; 2], a: &[f32; 2], b: &[f32; 2]) -> f32 {
     (dx * dx + dy * dy).sqrt()
 }
 
-
-
-
-
 /// Render the new physics layer set dialog (Tiled-compatible)
 pub fn render_new_physics_layer_set_dialog(
     ctx: &egui::Context,
@@ -3280,25 +3352,34 @@ pub fn render_new_physics_layer_set_dialog(
 
             // Color picker
             let default_color = [0, 140, 255u8]; // Default blue
-            let mut rgb = [(editor_state.new_physics_layer_debug_color.to_srgba().red * 255.0) as u8,
-                                    (editor_state.new_physics_layer_debug_color.to_srgba().green * 255.0) as u8,
-                                    (editor_state.new_physics_layer_debug_color.to_srgba().blue * 255.0) as u8];
+            let mut rgb = [
+                (editor_state.new_physics_layer_debug_color.to_srgba().red * 255.0) as u8,
+                (editor_state.new_physics_layer_debug_color.to_srgba().green * 255.0) as u8,
+                (editor_state.new_physics_layer_debug_color.to_srgba().blue * 255.0) as u8,
+            ];
             ui.label("Color:");
             if egui::color_picker::color_edit_button_srgb(ui, &mut rgb).changed() {
-                editor_state.new_physics_layer_debug_color = Color::srgba(rgb[0] as f32 / 255.0, rgb[1] as f32 / 255.0, rgb[2] as f32 / 255.0, 0.3);
+                editor_state.new_physics_layer_debug_color = Color::srgba(
+                    rgb[0] as f32 / 255.0,
+                    rgb[1] as f32 / 255.0,
+                    rgb[2] as f32 / 255.0,
+                    0.3,
+                );
             }
 
             ui.horizontal(|ui| {
                 ui.label("Layer:");
-                ui.add(egui::DragValue::new(&mut editor_state.new_physics_layer_layer));
+                ui.add(egui::DragValue::new(
+                    &mut editor_state.new_physics_layer_layer,
+                ));
             });
 
             ui.horizontal(|ui| {
                 ui.label("Mask:");
-                ui.add(egui::DragValue::new(&mut editor_state.new_physics_layer_mask));
+                ui.add(egui::DragValue::new(
+                    &mut editor_state.new_physics_layer_mask,
+                ));
             });
-
-            
 
             ui.separator();
 
@@ -3318,10 +3399,7 @@ pub fn render_new_physics_layer_set_dialog(
                     );
                     let tileset = project.tilesets.iter_mut().find(|t| t.id == tileset_id);
                     if let Some(tileset) = tileset {
-                        tileset
-                            .physics_layers
-                            .layers
-                            .push(physics_layer_set);
+                        tileset.physics_layers.layers.push(physics_layer_set);
                     };
                     project.mark_dirty();
                     editor_state.show_add_physics_layer_set_dialog = false;

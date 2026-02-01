@@ -287,16 +287,23 @@ impl Tileset {
 
     /// Check if a tile has collision
     pub fn tile_has_collision(&self, tile_index: u32, physics_layer: Uuid) -> bool {
-
         if let Some(physics_layer_set) = self.physics_layers.get_physics_layer(physics_layer) {
-            physics_layer_set.tile_physics.get(&tile_index).map(|p| p.has_collision()).unwrap_or(false)
+            physics_layer_set
+                .tile_physics
+                .get(&tile_index)
+                .map(|p| p.has_collision())
+                .unwrap_or(false)
         } else {
             false
         }
     }
 
     /// Get collision data for a tile
-    pub fn get_tile_collision(&self, tile_index: u32, physics_layer: Uuid) -> Option<&CollisionData> {
+    pub fn get_tile_collision(
+        &self,
+        tile_index: u32,
+        physics_layer: Uuid,
+    ) -> Option<&CollisionData> {
         if let Some(physics_layer_set) = self.physics_layers.get_physics_layer(physics_layer) {
             physics_layer_set.tile_physics.get(&tile_index)
         } else {
@@ -305,15 +312,28 @@ impl Tileset {
     }
 
     /// Set collision data for a tile
-    pub fn set_tile_collision(&mut self, tile_index: u32, collision: CollisionData, physics_layer: Uuid) {
+    pub fn set_tile_collision(
+        &mut self,
+        tile_index: u32,
+        collision: CollisionData,
+        physics_layer: Uuid,
+    ) {
         if let Some(physics_layer_set) = self.physics_layers.get_physics_layer_mut(physics_layer) {
             physics_layer_set.tile_physics.insert(tile_index, collision);
-            println!("set tile {} collision for physics layer {:?}", tile_index, physics_layer);
+            println!(
+                "set tile {} collision for physics layer {:?}",
+                tile_index, physics_layer
+            );
         }
     }
 
     /// Set full collision for a tile (convenience method)
-    pub fn set_tile_full_collision(&mut self, tile_index: u32, has_collision: bool, physics_layer: Uuid) {
+    pub fn set_tile_full_collision(
+        &mut self,
+        tile_index: u32,
+        has_collision: bool,
+        physics_layer: Uuid,
+    ) {
         if let Some(physics_layer_set) = self.physics_layers.get_physics_layer_mut(physics_layer) {
             let collision = if has_collision {
                 CollisionData::full()
@@ -322,24 +342,38 @@ impl Tileset {
             };
             physics_layer_set.tile_physics.insert(tile_index, collision);
 
-            println!("set tile {} collision for physics layer {:?}", tile_index, physics_layer);
-
+            println!(
+                "set tile {} collision for physics layer {:?}",
+                tile_index, physics_layer
+            );
         } else {
             println!("Warning: Physics layer {:?} not found", physics_layer);
         }
-        
     }
 
     /// Set collision shape for a tile (preserving other collision properties)
-    pub fn set_tile_collision_shape(&mut self, tile_index: u32, shape: CollisionShape, physics_layer: Uuid) {
+    pub fn set_tile_collision_shape(
+        &mut self,
+        tile_index: u32,
+        shape: CollisionShape,
+        physics_layer: Uuid,
+    ) {
         if let Some(physics_layer_set) = self.physics_layers.get_physics_layer_mut(physics_layer) {
             physics_layer_set.set_tile_physics_shape(tile_index, shape);
-            println!("set tile {} collision for physics layer {:?}", tile_index, physics_layer);
+            println!(
+                "set tile {} collision for physics layer {:?}",
+                tile_index, physics_layer
+            );
         };
     }
 
     /// Set one-way direction for a tile collision
-    pub fn set_tile_one_way(&mut self, tile_index: u32, direction: OneWayDirection, physics_layer: Uuid) {
+    pub fn set_tile_one_way(
+        &mut self,
+        tile_index: u32,
+        direction: OneWayDirection,
+        physics_layer: Uuid,
+    ) {
         if let Some(physics_layer_set) = self.physics_layers.get_physics_layer_mut(physics_layer) {
             physics_layer_set.set_tile_physics_one_way(tile_index, direction);
         };

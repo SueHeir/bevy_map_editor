@@ -20,7 +20,6 @@ mod tileset;
 mod value;
 mod world;
 
-pub use physics_layers::{PhysicsLayers, PhysicsLayerSet};
 pub use collision::{CollisionData, CollisionShape, OneWayDirection, PhysicsBody};
 pub use entity::{
     ComponentOverrides, EntityInstance, InputOverrides, PhysicsOverrides, SpriteOverrides,
@@ -34,6 +33,7 @@ pub use layer::{
     LayerData, LayerType, OCCUPIED_CELL, TILE_FLIP_MASK, TILE_FLIP_X, TILE_FLIP_Y, TILE_INDEX_MASK,
 };
 pub use level::Level;
+pub use physics_layers::{PhysicsLayerSet, PhysicsLayers};
 pub use project::{EditorProject, MapProject, MapProjectBuilder};
 pub use tileset::{TileProperties, Tileset, TilesetImage};
 pub use value::Value;
