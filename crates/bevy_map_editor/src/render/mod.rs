@@ -37,6 +37,7 @@ impl Plugin for MapRenderPlugin {
             .add_systems(Update, sync_terrain_preview)
             .add_systems(Update, sync_brush_preview)
             .add_systems(Update, sync_entity_rendering)
+            .add_systems(Update, sync_layer_dimming)
             .add_systems(PostUpdate, update_camera_from_editor_state);
     }
 }
@@ -63,6 +64,8 @@ pub struct RenderState {
     /// Multi-cell tile sprites: (level_id, layer_index, x, y) -> sprite entity
     /// These are rendered as separate Sprites instead of TileBundle to span multiple cells
     pub multi_cell_sprites: HashMap<(Uuid, usize, u32, u32), Entity>,
+    /// Last selected layer for dimming change detection
+    pub last_dimming_layer: Option<Option<usize>>,
 }
 
 impl RenderState {
@@ -2262,4 +2265,51 @@ fn parse_hex_color(color_str: &str) -> Color {
 
     // Default fallback color (green)
     Color::srgba(0.4, 0.8, 0.4, 0.8)
+}
+
+/// System to dim non-selected tile layers for visual clarity.
+/// The selected layer renders at full opacity while other layers are dimmed to 40%.
+fn sync_layer_dimming(
+    editor_state: Res<EditorState>,
+    mut render_state: ResMut<RenderState>,
+    mut commands: Commands,
+    tilemap_query: Query<(Entity, &EditorTilemap, &Children), Without<MultiCellTileSprite>>,
+    tile_query: Query<Entity, With<TilePos>>,
+    mut multi_cell_query: Query<(&MultiCellTileSprite, &mut Sprite)>,
+) {
+    let selected = editor_state.selected_layer;
+
+    // Only update when the selection changes
+    if render_state.last_dimming_layer == Some(selected) {
+        return;
+    }
+    render_state.last_dimming_layer = Some(selected);
+
+    let dimmed_color = TileColor(Color::srgba(1.0, 1.0, 1.0, 0.4));
+    let full_color = TileColor(Color::WHITE);
+
+    // Update 1x1 tiles via TileColor on each tile entity
+    for (_, editor_tilemap, children) in tilemap_query.iter() {
+        let color = match selected {
+            Some(sel) if editor_tilemap.layer_index == sel => full_color,
+            Some(_) => dimmed_color,
+            None => full_color,
+        };
+
+        for child in children.iter() {
+            if tile_query.get(child).is_ok() {
+                commands.entity(child).insert(color);
+            }
+        }
+    }
+
+    // Update multi-cell tile sprites
+    let dimmed_sprite_color = Color::srgba(1.0, 1.0, 1.0, 0.4);
+    for (multi_cell, mut sprite) in multi_cell_query.iter_mut() {
+        sprite.color = match selected {
+            Some(sel) if multi_cell.layer_index == sel => Color::WHITE,
+            Some(_) => dimmed_sprite_color,
+            None => Color::WHITE,
+        };
+    }
 }
