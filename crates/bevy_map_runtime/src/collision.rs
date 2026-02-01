@@ -34,7 +34,7 @@ use bevy_map_core::CollisionData;
 use bevy_map_core::{CollisionShape, OneWayDirection, PhysicsBody};
 
 #[cfg(feature = "physics")]
-use avian2d::prelude::*;
+use avian2d::{prelude::*, schedule::PhysicsSchedulePlugin};
 
 #[cfg(feature = "physics")]
 use bevy_ecs_tilemap::prelude::*;
@@ -49,8 +49,11 @@ pub struct MapCollisionPlugin;
 #[cfg(feature = "physics")]
 impl Plugin for MapCollisionPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(avian2d::PhysicsPlugins::default())
-            .add_systems(Update, spawn_tile_colliders);
+        if !app.is_plugin_added::<PhysicsSchedulePlugin>() {
+            // Only add the plugin if it hasn't been added yet
+            app.add_plugins(avian2d::PhysicsPlugins::default());
+        }
+        app.add_systems(Update, spawn_tile_colliders);
     }
 }
 
