@@ -1,6 +1,7 @@
 //! Tileset configuration with multi-image support
 
 use crate::collision::{CollisionData, CollisionShape, OneWayDirection};
+use crate::physics_layers::PhysicsLayers;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
@@ -216,6 +217,9 @@ pub struct Tileset {
     /// Multiple image sources
     #[serde(default)]
     pub images: Vec<TilesetImage>,
+    /// Collision layers configuration
+    #[serde(default)]
+    pub physics_layers: PhysicsLayers,
     /// Per-tile properties (collision, animation, custom data)
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub tile_properties: HashMap<u32, TileProperties>,
@@ -239,6 +243,7 @@ impl Tileset {
             name,
             tile_size,
             images: vec![image],
+            physics_layers: PhysicsLayers::new(),
             tile_properties: HashMap::new(),
             path: Some(path),
             columns,
@@ -253,6 +258,7 @@ impl Tileset {
             name,
             tile_size,
             images: Vec::new(),
+            physics_layers: PhysicsLayers::new(),
             tile_properties: HashMap::new(),
             path: None,
             columns: 0,
@@ -280,76 +286,77 @@ impl Tileset {
     }
 
     /// Check if a tile has collision
-    pub fn tile_has_collision(&self, tile_index: u32) -> bool {
-        self.tile_properties
-            .get(&tile_index)
-            .map(|p| p.has_collision())
-            .unwrap_or(false)
+    pub fn tile_has_collision(&self, tile_index: u32, physics_layer: Uuid) -> bool {
+
+        if let Some(physics_layer_set) = self.physics_layers.get_physics_layer(physics_layer) {
+            physics_layer_set.tile_physics.get(&tile_index).map(|p| p.has_collision()).unwrap_or(false)
+        } else {
+            false
+        }
     }
 
     /// Get collision data for a tile
-    pub fn get_tile_collision(&self, tile_index: u32) -> Option<&CollisionData> {
-        self.tile_properties.get(&tile_index).map(|p| &p.collision)
+    pub fn get_tile_collision(&self, tile_index: u32, physics_layer: Uuid) -> Option<&CollisionData> {
+        if let Some(physics_layer_set) = self.physics_layers.get_physics_layer(physics_layer) {
+            physics_layer_set.tile_physics.get(&tile_index)
+        } else {
+            None
+        }
     }
 
     /// Set collision data for a tile
-    pub fn set_tile_collision(&mut self, tile_index: u32, collision: CollisionData) {
-        let props = self.get_tile_properties_mut(tile_index);
-        props.collision = collision;
-        // Clean up if properties are now empty
-        if props.is_empty() {
-            self.tile_properties.remove(&tile_index);
+    pub fn set_tile_collision(&mut self, tile_index: u32, collision: CollisionData, physics_layer: Uuid) {
+        if let Some(physics_layer_set) = self.physics_layers.get_physics_layer_mut(physics_layer) {
+            physics_layer_set.tile_physics.insert(tile_index, collision);
+            println!("set tile {} collision for physics layer {:?}", tile_index, physics_layer);
         }
     }
 
     /// Set full collision for a tile (convenience method)
-    pub fn set_tile_full_collision(&mut self, tile_index: u32, has_collision: bool) {
-        let collision = if has_collision {
-            CollisionData::full()
+    pub fn set_tile_full_collision(&mut self, tile_index: u32, has_collision: bool, physics_layer: Uuid) {
+        if let Some(physics_layer_set) = self.physics_layers.get_physics_layer_mut(physics_layer) {
+            let collision = if has_collision {
+                CollisionData::full()
+            } else {
+                CollisionData::none()
+            };
+            physics_layer_set.tile_physics.insert(tile_index, collision);
+
+            println!("set tile {} collision for physics layer {:?}", tile_index, physics_layer);
+
         } else {
-            CollisionData::none()
-        };
-        self.set_tile_collision(tile_index, collision);
+            println!("Warning: Physics layer {:?} not found", physics_layer);
+        }
+        
     }
 
     /// Set collision shape for a tile (preserving other collision properties)
-    pub fn set_tile_collision_shape(&mut self, tile_index: u32, shape: CollisionShape) {
-        let props = self.get_tile_properties_mut(tile_index);
-        props.collision.shape = shape;
-        // Clean up if properties are now empty
-        if props.is_empty() {
-            self.tile_properties.remove(&tile_index);
-        }
+    pub fn set_tile_collision_shape(&mut self, tile_index: u32, shape: CollisionShape, physics_layer: Uuid) {
+        if let Some(physics_layer_set) = self.physics_layers.get_physics_layer_mut(physics_layer) {
+            physics_layer_set.set_tile_physics_shape(tile_index, shape);
+            println!("set tile {} collision for physics layer {:?}", tile_index, physics_layer);
+        };
     }
 
     /// Set one-way direction for a tile collision
-    pub fn set_tile_one_way(&mut self, tile_index: u32, direction: OneWayDirection) {
-        let props = self.get_tile_properties_mut(tile_index);
-        props.collision.one_way = direction;
-        // Clean up if properties are now empty
-        if props.is_empty() {
-            self.tile_properties.remove(&tile_index);
-        }
+    pub fn set_tile_one_way(&mut self, tile_index: u32, direction: OneWayDirection, physics_layer: Uuid) {
+        if let Some(physics_layer_set) = self.physics_layers.get_physics_layer_mut(physics_layer) {
+            physics_layer_set.set_tile_physics_one_way(tile_index, direction);
+        };
     }
 
     /// Set collision layer for a tile
-    pub fn set_tile_collision_layer(&mut self, tile_index: u32, layer: u8) {
-        let props = self.get_tile_properties_mut(tile_index);
-        props.collision.layer = layer;
-        // Clean up if properties are now empty
-        if props.is_empty() {
-            self.tile_properties.remove(&tile_index);
-        }
+    pub fn set_tile_collision_layer(&mut self, tile_index: u32, layer: u8, physics_layer: Uuid) {
+        if let Some(physics_layer_set) = self.physics_layers.get_physics_layer_mut(physics_layer) {
+            physics_layer_set.update_all_tile_physics_layer(layer);
+        };
     }
 
     /// Set collision mask for a tile
-    pub fn set_tile_collision_mask(&mut self, tile_index: u32, mask: u32) {
-        let props = self.get_tile_properties_mut(tile_index);
-        props.collision.mask = mask;
-        // Clean up if properties are now empty
-        if props.is_empty() {
-            self.tile_properties.remove(&tile_index);
-        }
+    pub fn set_tile_collision_mask(&mut self, tile_index: u32, mask: u32, physics_layer: Uuid) {
+        if let Some(physics_layer_set) = self.physics_layers.get_physics_layer_mut(physics_layer) {
+            physics_layer_set.update_all_tile_physics_mask(mask);
+        };
     }
 
     /// Migrate legacy single-image format to multi-image format

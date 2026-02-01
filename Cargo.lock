@@ -1299,7 +1299,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_map"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "bevy",
  "bevy_map_animation",
@@ -1313,7 +1313,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_map_animation"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "bevy",
  "serde",
@@ -1323,7 +1323,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_map_autotile"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "bevy_map_core",
  "log",
@@ -1335,7 +1335,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_map_codegen"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "bevy_map_core",
  "bevy_map_schema",
@@ -1349,7 +1349,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_map_core"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "bevy",
  "bevy_map_animation",
@@ -1361,7 +1361,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_map_derive"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1370,7 +1370,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_map_dialogue"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "bevy",
  "serde",
@@ -1380,7 +1380,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_map_editor"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "bevy",
  "bevy_ecs_tilemap",
@@ -1416,7 +1416,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_map_runtime"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "avian2d",
  "bevy",
@@ -1433,7 +1433,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_map_schema"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "bevy_map_core",
  "serde",

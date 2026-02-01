@@ -300,7 +300,7 @@ impl Default for EditorStateConfig {
     fn default() -> Self {
         Self {
             show_grid: true,
-            show_collisions: false,
+            show_collisions: true,
             snap_to_grid: true,
             initial_zoom: 1.0,
             initial_tool: EditorTool::Select,
@@ -588,6 +588,13 @@ pub struct EditorState {
     pub show_tileset_editor: bool,
     pub tileset_editor_state: TilesetEditorState,
 
+    // Physics Layer Editor
+    pub show_add_physics_layer_set_dialog: bool,
+    pub new_physics_layer_name: String,
+    pub new_physics_layer_mask: u32,
+    pub new_physics_layer_layer: u8,
+    pub new_physics_layer_debug_color: Color,
+
     // SpriteSheet Editor (for spritesheet setup: image loading, grid config)
     pub show_spritesheet_editor: bool,
     pub spritesheet_editor_state: SpriteSheetEditorState,
@@ -706,7 +713,7 @@ impl Default for EditorState {
             current_tool: EditorTool::Select,
             tool_mode: ToolMode::Point,
             show_grid: true,
-            show_collisions: false,
+            show_collisions: true,
             snap_to_grid: true,
             zoom: 1.0,
             camera_offset: bevy::math::Vec2::ZERO,
@@ -769,6 +776,14 @@ impl Default for EditorState {
             show_tileset_editor: false,
             tileset_editor_state: TilesetEditorState::default(),
 
+            show_add_physics_layer_set_dialog: false,
+            new_physics_layer_name: String::new(),
+            new_physics_layer_mask: 0,
+            new_physics_layer_layer: 0,
+            new_physics_layer_debug_color: Color::srgba(0.2, 0.6, 1.0, 0.3),
+
+
+            
             show_spritesheet_editor: false,
             spritesheet_editor_state: SpriteSheetEditorState::new(),
 

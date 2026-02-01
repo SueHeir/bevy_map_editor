@@ -14,11 +14,13 @@ mod entity;
 mod entity_type_config;
 mod layer;
 mod level;
+mod physics_layers;
 mod project;
 mod tileset;
 mod value;
 mod world;
 
+pub use physics_layers::{PhysicsLayers, PhysicsLayerSet};
 pub use collision::{CollisionData, CollisionShape, OneWayDirection, PhysicsBody};
 pub use entity::{
     ComponentOverrides, EntityInstance, InputOverrides, PhysicsOverrides, SpriteOverrides,

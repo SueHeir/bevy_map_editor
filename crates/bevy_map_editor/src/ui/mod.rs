@@ -1421,6 +1421,9 @@ fn render_ui(
     terrain::render_new_terrain_set_dialog(ctx, &mut editor_state, &mut project);
     terrain::render_add_terrain_to_set_dialog(ctx, &mut editor_state, &mut project);
 
+    // Physics dialogs
+    tileset_editor::render_new_physics_layer_set_dialog(ctx, &mut editor_state, &mut project);
+
     // New level dialog (for World View)
     if let Some(params) = render_new_level_dialog(ctx, &mut editor_state) {
         let new_level = bevy_map_core::Level::new_at(

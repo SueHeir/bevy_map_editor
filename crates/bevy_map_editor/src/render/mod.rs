@@ -920,21 +920,33 @@ fn sync_collision_rendering(
                     let idx = (y * level.width + x) as usize;
                     if let Some(&Some(tile_index)) = tiles.get(idx) {
                         // Check if this tile has collision
-                        if let Some(props) = tileset.get_tile_properties(tile_index) {
-                            if props.collision.has_collision() {
-                                // Spawn collision overlay sprite(s)
-                                spawn_collision_overlay(
-                                    &mut commands,
-                                    &mut cache,
-                                    &props.collision.shape,
-                                    x,
-                                    y,
-                                    tile_size,
-                                    layer_idx,
-                                    collision_color,
-                                );
+
+                        for physics_layer in tileset.physics_layers.layers.iter() {
+                            if let Some(collision) = tileset.get_tile_collision(tile_index, physics_layer.id) {
+                                if collision.has_collision() {
+
+                                    let color = Color::srgba_u8(
+                                        physics_layer.debug_color[0] ,
+                                        physics_layer.debug_color[1] ,
+                                        physics_layer.debug_color[2],
+                                        200, // Alpha value
+                                    );
+                                    // Spawn collision overlay sprite(s)
+                                    spawn_collision_overlay(
+                                        &mut commands,
+                                        &mut cache,
+                                        &collision.shape,
+                                        x,
+                                        y,
+                                        tile_size,
+                                        layer_idx,
+                                        color,
+                                    );
+                                }
                             }
+                        
                         }
+                       
                     }
                 }
             }
