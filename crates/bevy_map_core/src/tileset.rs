@@ -342,6 +342,16 @@ impl Tileset {
         }
     }
 
+    /// Set collision mask for a tile
+    pub fn set_tile_collision_mask(&mut self, tile_index: u32, mask: u32) {
+        let props = self.get_tile_properties_mut(tile_index);
+        props.collision.mask = mask;
+        // Clean up if properties are now empty
+        if props.is_empty() {
+            self.tile_properties.remove(&tile_index);
+        }
+    }
+
     /// Migrate legacy single-image format to multi-image format
     pub fn migrate_to_multi_image(&mut self) {
         if self.images.is_empty() {

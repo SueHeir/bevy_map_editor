@@ -1356,6 +1356,25 @@ fn render_tile_properties_tab(
                                 }
                             }
                         });
+
+
+                        // Collision Mask
+                        let mut mask = collision_data.mask;
+                        ui.horizontal(|ui| {
+                            ui.label("Mask:");
+                            if ui
+                                .add(egui::DragValue::new(&mut mask).range(0..=31))
+                                .changed()
+                            {
+                                if let Some(tileset) =
+                                    project.tilesets.iter_mut().find(|t| t.id == tileset_id)
+                                {
+                                    let props = tileset.get_tile_properties_mut(tile_idx);
+                                    props.collision.mask = mask;
+                                    project.mark_dirty();
+                                }
+                            }
+                        });
                     });
 
                     ui.separator();
@@ -2997,6 +3016,22 @@ fn render_collision_properties(
         {
             if let Some(tileset) = project.tilesets.iter_mut().find(|t| t.id == tileset_id) {
                 tileset.set_tile_collision_layer(tile_idx, layer);
+                project.mark_dirty();
+            }
+        }
+    });
+
+
+    // Collision mask
+    let mut mask = collision_data.mask;
+    ui.horizontal(|ui| {
+        ui.label("Mask:");
+        if ui
+            .add(egui::DragValue::new(&mut mask).range(0..=31))
+            .changed()
+        {
+            if let Some(tileset) = project.tilesets.iter_mut().find(|t| t.id == tileset_id) {
+                tileset.set_tile_collision_mask(tile_idx, mask);
                 project.mark_dirty();
             }
         }
