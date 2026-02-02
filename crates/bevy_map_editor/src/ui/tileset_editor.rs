@@ -2715,24 +2715,34 @@ fn handle_collision_canvas_input(
 
             // Check if starting drag on a polygon vertex handle
             if let Some(tileset) = project.tilesets.iter().find(|t| t.id == tileset_id) {
-                if let Some(props) = tileset.get_tile_properties(tile_idx) {
-                    if let bevy_map_core::CollisionShape::Polygon { points } =
-                        &props.collision.shape
+
+                if let Some(physics_layer) = tileset
+                                    .physics_layers
+                                    .get_physics_layer(physics_layer_id)
+                {
+                    if let Some(props) =
+                        physics_layer.tile_physics.get(&tile_idx)
                     {
-                        if let Some(vertex_idx) =
-                            hit_test_polygon_vertex(canvas_rect, points, pointer_pos, 8.0)
+                        let shape = &props.shape;
+
+                        if let bevy_map_core::CollisionShape::Polygon { points } =
+                            &shape
                         {
-                            editor_state
-                                .tileset_editor_state
-                                .collision_editor
-                                .drag_state = Some(CollisionDragState {
-                                start_pos: normalized,
-                                current_pos: normalized,
-                                operation: CollisionDragOperation::MoveVertex {
-                                    index: vertex_idx,
-                                    original: points[vertex_idx],
-                                },
-                            });
+                            if let Some(vertex_idx) =
+                                hit_test_polygon_vertex(canvas_rect, points, pointer_pos, 8.0)
+                            {
+                                editor_state
+                                    .tileset_editor_state
+                                    .collision_editor
+                                    .drag_state = Some(CollisionDragState {
+                                    start_pos: normalized,
+                                    current_pos: normalized,
+                                    operation: CollisionDragOperation::MoveVertex {
+                                        index: vertex_idx,
+                                        original: points[vertex_idx],
+                                    },
+                                });
+                            }
                         }
                     }
                 }
@@ -2834,13 +2844,22 @@ fn handle_collision_canvas_input(
                     // Update the polygon vertex in the tileset
                     if let Some(tileset) = project.tilesets.iter_mut().find(|t| t.id == tileset_id)
                     {
-                        if let Some(props) = tileset.tile_properties.get_mut(&tile_idx) {
-                            if let bevy_map_core::CollisionShape::Polygon { points } =
-                                &mut props.collision.shape
+                        if let Some(physics_layer) = tileset
+                                    .physics_layers
+                                    .get_physics_layer_mut(physics_layer_id)
+                        {
+                            if let Some(props) =
+                                physics_layer.tile_physics.get_mut(&tile_idx)
                             {
-                                if index < points.len() {
-                                    points[index] = clamped;
-                                    project.mark_dirty();
+                                let mut shape = &mut props.shape;
+                    
+                                if let bevy_map_core::CollisionShape::Polygon { points } =
+                                    &mut shape
+                                {
+                                    if index < points.len() {
+                                        points[index] = clamped;
+                                        project.mark_dirty();
+                                    }
                                 }
                             }
                         }
@@ -2943,19 +2962,26 @@ fn handle_collision_canvas_input(
             let normalized = canvas_point_to_normalized(canvas_rect, pointer_pos);
 
             // Check if on existing vertex
-            let vertex_idx = if let Some(tileset) =
-                project.tilesets.iter().find(|t| t.id == tileset_id)
-            {
-                tileset.get_tile_properties(tile_idx).and_then(|p| {
-                    if let bevy_map_core::CollisionShape::Polygon { points } = &p.collision.shape {
-                        hit_test_polygon_vertex(canvas_rect, points, pointer_pos, 8.0)
+            let vertex_idx =
+                if let Some(tileset) = project.tilesets.iter().find(|t| t.id == tileset_id) {
+                    let collision_shape = tileset
+                        .physics_layers
+                        .get_physics_layer(physics_layer_id)
+                        .and_then(|layer| layer.get_tile_physics(tile_idx))
+                        .map(|data| data.shape.clone());
+
+                    if let Some(shape) = collision_shape {
+                        if let bevy_map_core::CollisionShape::Polygon { points } = &shape {
+                            hit_test_polygon_vertex(canvas_rect, points, pointer_pos, 8.0)
+                        } else {
+                            None
+                        }
                     } else {
                         None
                     }
-                })
-            } else {
-                None
-            };
+                } else {
+                    None
+                };
 
             editor_state
                 .tileset_editor_state
@@ -2987,13 +3013,8 @@ fn handle_collision_canvas_input(
                         .tilesets
                         .iter()
                         .find(|t| t.id == tileset_id)
-                        .and_then(|t| t.get_tile_properties(tile_idx))
-                        .map(|p| {
-                            matches!(
-                                p.collision.shape,
-                                bevy_map_core::CollisionShape::Polygon { .. }
-                            )
-                        })
+                        .and_then(|t| t.get_tile_collision(tile_idx, physics_layer_id))
+                        .map(|p| matches!(p.shape, bevy_map_core::CollisionShape::Polygon { .. }))
                         .unwrap_or(false);
 
                     if is_polygon {
@@ -3001,18 +3022,26 @@ fn handle_collision_canvas_input(
                             if let Some(tileset) =
                                 project.tilesets.iter_mut().find(|t| t.id == tileset_id)
                             {
-                                if let Some(props) = tileset.tile_properties.get_mut(&tile_idx) {
-                                    if let bevy_map_core::CollisionShape::Polygon { points } =
-                                        &mut props.collision.shape
+                                if let Some(physics_layer) = tileset
+                                    .physics_layers
+                                    .get_physics_layer_mut(physics_layer_id)
+                                {
+                                    if let Some(props) =
+                                        physics_layer.tile_physics.get_mut(&tile_idx)
                                     {
-                                        let clamped = [
-                                            menu_pos[0].clamp(0.0, 1.0),
-                                            menu_pos[1].clamp(0.0, 1.0),
-                                        ];
-                                        let insert_idx =
-                                            find_best_insertion_index(points, &clamped);
-                                        points.insert(insert_idx, clamped);
-                                        project.mark_dirty();
+                                        let mut shape = &mut props.shape;
+                                        if let bevy_map_core::CollisionShape::Polygon { points } =
+                                            &mut shape
+                                        {
+                                            let clamped = [
+                                                menu_pos[0].clamp(0.0, 1.0),
+                                                menu_pos[1].clamp(0.0, 1.0),
+                                            ];
+                                            let insert_idx =
+                                                find_best_insertion_index(points, &clamped);
+                                            points.insert(insert_idx, clamped);
+                                            project.mark_dirty();
+                                        }
                                     }
                                 }
                             }

@@ -82,6 +82,11 @@ impl PhysicsLayerSet {
         self.tile_physics.get(&tile_index)
     }
 
+    /// Get collision data for a tile index
+    pub fn get_tile_physics_mut(&mut self, tile_index: u32) -> Option<&mut CollisionData> {
+        self.tile_physics.get_mut(&tile_index)
+    }
+
     pub fn set_tile_physics_shape(&mut self, tile_index: u32, shape: CollisionShape) {
         if let Some(collision_data) = self.tile_physics.get_mut(&tile_index) {
             collision_data.shape = shape;
