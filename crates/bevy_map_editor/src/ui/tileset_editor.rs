@@ -1361,7 +1361,7 @@ fn render_tile_properties_tab(
                         ui.horizontal(|ui| {
                             ui.label("Layer:");
                             if ui
-                                .add(egui::DragValue::new(&mut layer).range(0..=31))
+                                .add(egui::DragValue::new(&mut layer))
                                 .changed()
                             {
                                 if let Some(tileset) =
@@ -1379,7 +1379,7 @@ fn render_tile_properties_tab(
                         ui.horizontal(|ui| {
                             ui.label("Mask:");
                             if ui
-                                .add(egui::DragValue::new(&mut mask).range(0..=31))
+                                .add(egui::DragValue::new(&mut mask))
                                 .changed()
                             {
                                 if let Some(tileset) =
@@ -3204,7 +3204,7 @@ fn render_collision_properties(
     ui.horizontal(|ui| {
         ui.label("Layer:");
         if ui
-            .add(egui::DragValue::new(&mut layer).range(0..=31))
+            .add(egui::DragValue::new(&mut layer))
             .changed()
         {
             if let Some(tileset) = project.tilesets.iter_mut().find(|t| t.id == tileset_id) {
@@ -3219,7 +3219,7 @@ fn render_collision_properties(
     ui.horizontal(|ui| {
         ui.label("Mask:");
         if ui
-            .add(egui::DragValue::new(&mut mask).range(0..=31))
+            .add(egui::DragValue::new(&mut mask))
             .changed()
         {
             if let Some(tileset) = project.tilesets.iter_mut().find(|t| t.id == tileset_id) {

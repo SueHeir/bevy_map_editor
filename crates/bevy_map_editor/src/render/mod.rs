@@ -382,7 +382,7 @@ fn spawn_level_tilemaps(
 
             // Z-offset: layer_index * 0.1 + image_index * 0.01
             // This ensures proper ordering: all images in layer 0 render before layer 1
-            let layer_z = layer_index as f32 * 0.1 + image_index as f32 * 0.01;
+            let layer_z = 10.0 *layer_index as f32 + image_index as f32 * 0.01;
 
             // Insert TilemapBundle first (which includes Visibility internally)
             // Use BottomLeft anchor so tiles at (0,0) start at world origin
@@ -462,7 +462,7 @@ fn spawn_level_tilemaps(
             let world_y = y as f32 * tile_size_f32 + origin_y as f32;
 
             // Z-offset slightly above regular tiles in same layer
-            let layer_z = layer_index as f32 * 0.1 + image_index as f32 * 0.01 + 0.001;
+            let layer_z = layer_index as f32 * 10.0 + image_index as f32 * 0.01 + 0.001;
 
             let sprite_entity = commands
                 .spawn((
@@ -612,7 +612,7 @@ pub fn update_tile(
                         // World position: place sprite so origin aligns with grid cell corner
                         let world_x = x as f32 * tile_size_f32 + origin_x as f32;
                         let world_y = y as f32 * tile_size_f32 + origin_y as f32;
-                        let layer_z = layer_index as f32 * 0.1 + image_index as f32 * 0.01 + 0.001;
+                        let layer_z = layer_index as f32 * 10.0 + image_index as f32 * 0.01 + 0.001;
 
                         let sprite_entity = commands
                             .spawn((
@@ -682,7 +682,7 @@ pub fn update_tile(
                         let tile_storage = TileStorage::empty(map_size);
                         let tilemap_entity = commands.spawn_empty().id();
 
-                        let layer_z = layer_index as f32 * 0.1 + image_index as f32 * 0.01;
+                        let layer_z = layer_index as f32 * 10.0 + image_index as f32 * 0.01;
                         let layer_visible = layer.visible;
 
                         commands.entity(tilemap_entity).insert((
