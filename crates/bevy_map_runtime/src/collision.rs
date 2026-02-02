@@ -124,22 +124,27 @@ pub fn spawn_tile_colliders(
                         let idx = (y * level.width + x) as usize;
                         if let Some(&Some(tile_index)) = tiles.get(idx) {
                             // Check if this tile has collision
-                            if let Some(props) = tileset.get_tile_properties(tile_index) {
-                                if props.collision.has_collision() {
-                                    spawn_collider_for_tile(
-                                        &mut commands,
-                                        map_entity,
-                                        &props.collision,
-                                        x,
-                                        y,
-                                        tile_size,
-                                        &map_size,
-                                        &grid_size,
-                                        &tilemap_tile_size,
-                                        &map_type,
-                                        &anchor,
-                                    );
-                                    total_colliders += 1;
+                            for physics_layer in tileset.physics_layers.layers.iter() {
+
+                                if let Some(collision) =
+                                    physics_layer.get_tile_physics(tile_index)
+                                {
+                                    if collision.has_collision() {
+                                        spawn_collider_for_tile(
+                                            &mut commands,
+                                            map_entity,
+                                            collision,
+                                            x,
+                                            y,
+                                            tile_size,
+                                            &map_size,
+                                            &grid_size,
+                                            &tilemap_tile_size,
+                                            &map_type,
+                                            &anchor,
+                                        );
+                                        total_colliders += 1;
+                                    }
                                 }
                             }
                         }
