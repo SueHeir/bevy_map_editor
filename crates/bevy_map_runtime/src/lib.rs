@@ -255,9 +255,6 @@ impl Plugin for MapRuntimePlugin {
 pub struct MapHandle(pub Handle<MapProject>);
 
 
-#[derive(Component, Clone, Copy)]
-pub struct DisableGraphics;
-
 /// Marker component for the root entity of a spawned map
 ///
 /// This is added automatically when a map is spawned. It tracks the source
@@ -293,79 +290,57 @@ fn handle_map_handle_spawning(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     map_assets: Res<Assets<MapProject>>,
-    mut query: Query<(Entity, &MapHandle, &mut MapHandleState, Option<&Transform>, Has<DisableGraphics>)>,
+    mut query: Query<(Entity, &MapHandle, &mut MapHandleState, Option<&Transform>)>,
     entity_registry: Res<EntityRegistry>,
     mut map_dialogues: ResMut<MapDialogues>,
 ) {
-    for (entity, map_handle, mut state, _transform, has_disable_graphics) in query.iter_mut() {
+    for (entity, map_handle, mut state, _transform) in query.iter_mut() {
         // Check if asset is loaded
         let Some(project) = map_assets.get(&map_handle.0) else {
             continue;
         };
 
-        println!("print 1");
-
-
         // Start loading textures if we haven't
         if !state.loading_textures {
-
-            if !has_disable_graphics {
-                info!(
-                    "MapProject '{}' loaded, queueing texture loads...",
-                    project.level.name
-                );
-                let mut textures = TilesetTextures::new();
-                textures.load_from_project(project, &asset_server);
-                info!(
-                    "Queued {} tileset images, {} sprite sheets for loading",
-                    textures.images.len(),
-                    textures.sprite_sheet_images.len()
-                );
-                state.textures = Some(textures);
-                state.loading_textures = true;
-            } else {
-                state.textures = Some(TilesetTextures::new());
-                state.loading_textures = true;
-            }
-            
+            info!(
+                "MapProject '{}' loaded, queueing texture loads...",
+                project.level.name
+            );
+            let mut textures = TilesetTextures::new();
+            textures.load_from_project(project, &asset_server);
+            info!(
+                "Queued {} tileset images, {} sprite sheets for loading",
+                textures.images.len(),
+                textures.sprite_sheet_images.len()
+            );
+            state.textures = Some(textures);
+            state.loading_textures = true;
         }
-        println!("print 2");
 
         // Check if all textures are loaded
         let Some(textures) = &state.textures else {
-
-
             continue;
         };
 
-        println!("print 3");
-
-
-        if !has_disable_graphics {
-            if !textures.all_loaded(&asset_server) {
-                // Log loading state periodically (only once per second to avoid spam)
-                static LAST_LOG: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-                let now = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap()
-                    .as_secs();
-                let last = LAST_LOG.load(std::sync::atomic::Ordering::Relaxed);
-                if now > last {
-                    LAST_LOG.store(now, std::sync::atomic::Ordering::Relaxed);
-                    textures.log_loading_state(&asset_server);
-                }
-                continue;
+        if !textures.all_loaded(&asset_server) {
+            // Log loading state periodically (only once per second to avoid spam)
+            static LAST_LOG: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs();
+            let last = LAST_LOG.load(std::sync::atomic::Ordering::Relaxed);
+            if now > last {
+                LAST_LOG.store(now, std::sync::atomic::Ordering::Relaxed);
+                textures.log_loading_state(&asset_server);
             }
+            continue;
         }
-
-        println!("print 4");
 
         // Don't spawn if already spawned
         if state.spawned {
             continue;
         }
-
-        println!("print 5");
 
         info!(
             "Spawning map '{}' with {} layers, {} tilesets",
@@ -373,9 +348,6 @@ fn handle_map_handle_spawning(
             project.level.layers.len(),
             project.tilesets.len()
         );
-
-
-        println!("print 6");
 
         // Load dialogues from the project
         map_dialogues.load_from_project(project);
@@ -388,19 +360,13 @@ fn handle_map_handle_spawning(
             Some(&entity_registry),
         );
 
-        println!("print 7");
-
         // Add MapRoot marker and make it a child
         commands.entity(map_entity).insert(MapRoot {
             handle: map_handle.0.clone(),
             textures: textures.clone(),
         });
 
-        println!("print 8");
-
         commands.entity(entity).add_child(map_entity);
-
-        println!("print 9");
 
         state.spawned = true;
         info!("Spawned map: {}", project.level.name);
