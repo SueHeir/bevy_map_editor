@@ -303,6 +303,8 @@ fn handle_map_handle_spawning(
             continue;
         };
 
+        println!("print 1");
+
 
         // Start loading textures if we haven't
         if !state.loading_textures {
@@ -327,6 +329,7 @@ fn handle_map_handle_spawning(
             }
             
         }
+        println!("print 2");
 
         // Check if all textures are loaded
         let Some(textures) = &state.textures else {
@@ -334,6 +337,8 @@ fn handle_map_handle_spawning(
 
             continue;
         };
+
+        println!("print 3");
 
 
         if !has_disable_graphics {
@@ -353,10 +358,14 @@ fn handle_map_handle_spawning(
             }
         }
 
+        println!("print 4");
+
         // Don't spawn if already spawned
         if state.spawned {
             continue;
         }
+
+        println!("print 5");
 
         info!(
             "Spawning map '{}' with {} layers, {} tilesets",
@@ -364,6 +373,9 @@ fn handle_map_handle_spawning(
             project.level.layers.len(),
             project.tilesets.len()
         );
+
+
+        println!("print 6");
 
         // Load dialogues from the project
         map_dialogues.load_from_project(project);
@@ -376,13 +388,19 @@ fn handle_map_handle_spawning(
             Some(&entity_registry),
         );
 
+        println!("print 7");
+
         // Add MapRoot marker and make it a child
         commands.entity(map_entity).insert(MapRoot {
             handle: map_handle.0.clone(),
             textures: textures.clone(),
         });
 
+        println!("print 8");
+
         commands.entity(entity).add_child(map_entity);
+
+        println!("print 9");
 
         state.spawned = true;
         info!("Spawned map: {}", project.level.name);
