@@ -322,16 +322,21 @@ fn handle_map_handle_spawning(
                 state.textures = Some(textures);
                 state.loading_textures = true;
             } else {
-                state.textures = None;
+                state.textures = Some(TilesetTextures::new());
                 state.loading_textures = true;
             }
             
         }
+
+        // Check if all textures are loaded
+        let Some(textures) = &state.textures else {
+
+
+            continue;
+        };
+
+
         if !has_disable_graphics {
-            // Check if all textures are loaded
-            let Some(textures) = &state.textures else {
-                continue;
-            };
             if !textures.all_loaded(&asset_server) {
                 // Log loading state periodically (only once per second to avoid spam)
                 static LAST_LOG: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
