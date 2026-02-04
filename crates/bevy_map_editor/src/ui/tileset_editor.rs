@@ -2430,7 +2430,8 @@ fn render_collision_canvas(
     let tileset = project.tilesets.iter().find(|t| t.id == tileset_id);
     let collision_data = tileset
         .and_then(|t| t.physics_layers.get_physics_layer(physics_layer_id))
-        .and_then(|layer| layer.get_tile_physics(tile_idx)).cloned()
+        .and_then(|layer| layer.get_tile_physics(tile_idx))
+        .cloned()
         .unwrap_or_default();
 
     // 4. Draw collision shape overlay (skip if dragging vertex - preview handles it)
@@ -3145,7 +3146,8 @@ fn render_collision_properties(
 
     let collision_data = tileset
         .and_then(|t| t.physics_layers.get_physics_layer(physics_layer_id))
-        .and_then(|layer| layer.get_tile_physics(tile_idx)).cloned()
+        .and_then(|layer| layer.get_tile_physics(tile_idx))
+        .cloned()
         .unwrap_or_default();
 
     // Shape info
