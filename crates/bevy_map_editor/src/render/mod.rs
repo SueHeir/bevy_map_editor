@@ -382,7 +382,7 @@ fn spawn_level_tilemaps(
 
             // Z-offset: layer_index * 0.1 + image_index * 0.01
             // This ensures proper ordering: all images in layer 0 render before layer 1
-            let layer_z = 10.0 *layer_index as f32 + image_index as f32 * 0.01;
+            let layer_z = 10.0 * layer_index as f32 + image_index as f32 * 0.01;
 
             // Insert TilemapBundle first (which includes Visibility internally)
             // Use BottomLeft anchor so tiles at (0,0) start at world origin

@@ -254,7 +254,6 @@ impl Plugin for MapRuntimePlugin {
 #[derive(Component)]
 pub struct MapHandle(pub Handle<MapProject>);
 
-
 /// Marker component for the root entity of a spawned map
 ///
 /// This is added automatically when a map is spawned. It tracks the source

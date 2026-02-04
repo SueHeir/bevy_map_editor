@@ -125,9 +125,7 @@ pub fn spawn_tile_colliders(
                         if let Some(&Some(tile_index)) = tiles.get(idx) {
                             // Check if this tile has collision
                             for physics_layer in tileset.physics_layers.layers.iter() {
-
-                                if let Some(collision) =
-                                    physics_layer.get_tile_physics(tile_index)
+                                if let Some(collision) = physics_layer.get_tile_physics(tile_index)
                                 {
                                     if collision.has_collision() {
                                         spawn_collider_for_tile(

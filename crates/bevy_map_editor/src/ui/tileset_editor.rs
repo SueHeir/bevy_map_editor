@@ -1360,10 +1360,7 @@ fn render_tile_properties_tab(
                         let mut layer = collision_data.layer;
                         ui.horizontal(|ui| {
                             ui.label("Layer:");
-                            if ui
-                                .add(egui::DragValue::new(&mut layer))
-                                .changed()
-                            {
+                            if ui.add(egui::DragValue::new(&mut layer)).changed() {
                                 if let Some(tileset) =
                                     project.tilesets.iter_mut().find(|t| t.id == tileset_id)
                                 {
@@ -1378,10 +1375,7 @@ fn render_tile_properties_tab(
                         let mut mask = collision_data.mask;
                         ui.horizontal(|ui| {
                             ui.label("Mask:");
-                            if ui
-                                .add(egui::DragValue::new(&mut mask))
-                                .changed()
-                            {
+                            if ui.add(egui::DragValue::new(&mut mask)).changed() {
                                 if let Some(tileset) =
                                     project.tilesets.iter_mut().find(|t| t.id == tileset_id)
                                 {
@@ -2715,19 +2709,13 @@ fn handle_collision_canvas_input(
 
             // Check if starting drag on a polygon vertex handle
             if let Some(tileset) = project.tilesets.iter().find(|t| t.id == tileset_id) {
-
-                if let Some(physics_layer) = tileset
-                                    .physics_layers
-                                    .get_physics_layer(physics_layer_id)
+                if let Some(physics_layer) =
+                    tileset.physics_layers.get_physics_layer(physics_layer_id)
                 {
-                    if let Some(props) =
-                        physics_layer.tile_physics.get(&tile_idx)
-                    {
+                    if let Some(props) = physics_layer.tile_physics.get(&tile_idx) {
                         let shape = &props.shape;
 
-                        if let bevy_map_core::CollisionShape::Polygon { points } =
-                            &shape
-                        {
+                        if let bevy_map_core::CollisionShape::Polygon { points } = &shape {
                             if let Some(vertex_idx) =
                                 hit_test_polygon_vertex(canvas_rect, points, pointer_pos, 8.0)
                             {
@@ -2845,14 +2833,12 @@ fn handle_collision_canvas_input(
                     if let Some(tileset) = project.tilesets.iter_mut().find(|t| t.id == tileset_id)
                     {
                         if let Some(physics_layer) = tileset
-                                    .physics_layers
-                                    .get_physics_layer_mut(physics_layer_id)
+                            .physics_layers
+                            .get_physics_layer_mut(physics_layer_id)
                         {
-                            if let Some(props) =
-                                physics_layer.tile_physics.get_mut(&tile_idx)
-                            {
+                            if let Some(props) = physics_layer.tile_physics.get_mut(&tile_idx) {
                                 let mut shape = &mut props.shape;
-                    
+
                                 if let bevy_map_core::CollisionShape::Polygon { points } =
                                     &mut shape
                                 {
@@ -3203,10 +3189,7 @@ fn render_collision_properties(
     let mut layer = collision_data.layer;
     ui.horizontal(|ui| {
         ui.label("Layer:");
-        if ui
-            .add(egui::DragValue::new(&mut layer))
-            .changed()
-        {
+        if ui.add(egui::DragValue::new(&mut layer)).changed() {
             if let Some(tileset) = project.tilesets.iter_mut().find(|t| t.id == tileset_id) {
                 tileset.set_tile_collision_layer(tile_idx, layer, physics_layer_id);
                 project.mark_dirty();
@@ -3218,10 +3201,7 @@ fn render_collision_properties(
     let mut mask = collision_data.mask;
     ui.horizontal(|ui| {
         ui.label("Mask:");
-        if ui
-            .add(egui::DragValue::new(&mut mask))
-            .changed()
-        {
+        if ui.add(egui::DragValue::new(&mut mask)).changed() {
             if let Some(tileset) = project.tilesets.iter_mut().find(|t| t.id == tileset_id) {
                 tileset.set_tile_collision_mask(tile_idx, mask, physics_layer_id);
                 project.mark_dirty();
