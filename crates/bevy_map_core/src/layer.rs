@@ -67,7 +67,13 @@ pub fn toggle_flip_y(tile: u32) -> u32 {
 pub struct Layer {
     pub name: String,
     pub visible: bool,
+    #[serde(default = "default_opacity")]
+    pub opacity: f32,
     pub data: LayerData,
+}
+
+fn default_opacity() -> f32 {
+    1.0
 }
 
 impl Layer {
@@ -77,6 +83,7 @@ impl Layer {
         Self {
             name,
             visible: true,
+            opacity: 1.0,
             data: LayerData::Tiles {
                 tileset_id,
                 tiles: vec![None; size],
@@ -90,6 +97,7 @@ impl Layer {
         Self {
             name,
             visible: true,
+            opacity: 1.0,
             data: LayerData::Objects {
                 entities: Vec::new(),
             },
