@@ -46,8 +46,8 @@ fn main() {
                         // High DPI support: prevent OS-level scaling that causes blurriness
                         resolution: WindowResolution::new(window_width, window_height)
                             .with_scale_factor_override(1.0),
-                        // position: window_position,
-                        // mode: window_mode,
+                        position: window_position,
+                        mode: window_mode,
                         ..default()
                     }),
                     ..default()

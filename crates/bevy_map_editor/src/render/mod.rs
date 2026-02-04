@@ -907,8 +907,6 @@ fn sync_collision_rendering(
         return;
     };
 
-    let collision_color = Color::srgba(0.0, 0.6, 1.0, 0.3);
-
     // Iterate through tile layers
     for (layer_idx, layer) in level.layers.iter().enumerate() {
         if !layer.visible {

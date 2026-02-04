@@ -380,14 +380,14 @@ impl Tileset {
     }
 
     /// Set collision layer for a tile
-    pub fn set_tile_collision_layer(&mut self, tile_index: u32, layer: u8, physics_layer: Uuid) {
+    pub fn set_tile_collision_layer(&mut self, _tile_index: u32, layer: u8, physics_layer: Uuid) {
         if let Some(physics_layer_set) = self.physics_layers.get_physics_layer_mut(physics_layer) {
             physics_layer_set.update_all_tile_physics_layer(layer);
         };
     }
 
     /// Set collision mask for a tile
-    pub fn set_tile_collision_mask(&mut self, tile_index: u32, mask: u32, physics_layer: Uuid) {
+    pub fn set_tile_collision_mask(&mut self, _tile_index: u32, mask: u32, physics_layer: Uuid) {
         if let Some(physics_layer_set) = self.physics_layers.get_physics_layer_mut(physics_layer) {
             physics_layer_set.update_all_tile_physics_mask(mask);
         };

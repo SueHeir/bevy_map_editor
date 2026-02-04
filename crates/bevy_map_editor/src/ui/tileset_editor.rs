@@ -3360,7 +3360,6 @@ pub fn render_new_physics_layer_set_dialog(
             });
 
             // Color picker
-            let default_color = [0, 140, 255u8]; // Default blue
             let mut rgb = [
                 (editor_state.new_physics_layer_debug_color.to_srgba().red * 255.0) as u8,
                 (editor_state.new_physics_layer_debug_color.to_srgba().green * 255.0) as u8,
