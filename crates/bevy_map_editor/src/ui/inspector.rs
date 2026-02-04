@@ -153,6 +153,11 @@ fn render_layer_inspector(
         ui.label("Visible:");
         ui.checkbox(&mut layer.visible, "");
     });
+
+    ui.horizontal(|ui| {
+        ui.label("Opacity:");
+        ui.add(egui::Slider::new(&mut layer.opacity, 0.0..=1.0));
+    });
 }
 
 fn render_entity_inspector(

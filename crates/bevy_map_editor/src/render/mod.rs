@@ -37,6 +37,10 @@ impl Plugin for MapRenderPlugin {
             .add_systems(Update, sync_terrain_preview)
             .add_systems(Update, sync_brush_preview)
             .add_systems(Update, sync_entity_rendering)
+            .add_systems(
+                PostUpdate,
+                sync_layer_dimming.before(update_camera_from_editor_state),
+            )
             .add_systems(PostUpdate, update_camera_from_editor_state);
     }
 }
@@ -63,6 +67,10 @@ pub struct RenderState {
     /// Multi-cell tile sprites: (level_id, layer_index, x, y) -> sprite entity
     /// These are rendered as separate Sprites instead of TileBundle to span multiple cells
     pub multi_cell_sprites: HashMap<(Uuid, usize, u32, u32), Entity>,
+    /// Last known per-layer opacities for change detection
+    pub last_layer_opacities: HashMap<usize, f32>,
+    /// Last known selected layer for dimming change detection
+    pub last_selected_layer: Option<Option<usize>>,
 }
 
 impl RenderState {
@@ -152,6 +160,8 @@ fn sync_level_rendering(
         render_state.tile_storages.clear();
         render_state.multi_cell_sprites.clear();
         render_state.layer_visibility.clear();
+        render_state.last_layer_opacities.clear();
+        render_state.last_selected_layer = None;
         render_state.rendered_level = current_level_id;
         render_state.needs_rebuild = true;
     }
@@ -185,6 +195,8 @@ fn sync_level_rendering(
         render_state.tilemap_entities.clear();
         render_state.tile_storages.clear();
         render_state.multi_cell_sprites.clear();
+        render_state.last_layer_opacities.clear();
+        render_state.last_selected_layer = None;
 
         spawn_level_tilemaps(
             &mut commands,
@@ -2273,4 +2285,73 @@ fn parse_hex_color(color_str: &str) -> Color {
 
     // Default fallback color (green)
     Color::srgba(0.4, 0.8, 0.4, 0.8)
+}
+
+/// System to dim non-selected tile layers for visual clarity.
+/// The selected layer renders at full opacity while other layers are dimmed to 40%.
+fn sync_layer_dimming(
+    mut render_state: ResMut<RenderState>,
+    project: Res<Project>,
+    editor_state: Res<EditorState>,
+    mut commands: Commands,
+    tilemap_query: Query<(Entity, &EditorTilemap), Without<MultiCellTileSprite>>,
+    tile_query: Query<(Entity, &TilemapId), With<TilePos>>,
+    mut multi_cell_query: Query<(&MultiCellTileSprite, &mut Sprite)>,
+) {
+    // Build current opacity map from project data
+    let mut current_opacities: HashMap<usize, f32> = HashMap::new();
+    if let Some(level_id) = editor_state.selected_level {
+        if let Some(level) = project.get_level(level_id) {
+            for (i, layer) in level.layers.iter().enumerate() {
+                current_opacities.insert(i, layer.opacity);
+            }
+        }
+    }
+
+    let current_selected = Some(editor_state.selected_layer);
+
+    // Only update when opacities or selected layer change
+    if render_state.last_layer_opacities == current_opacities
+        && render_state.last_selected_layer == current_selected
+    {
+        return;
+    }
+    render_state.last_layer_opacities = current_opacities.clone();
+    render_state.last_selected_layer = current_selected;
+
+    let selected_layer = editor_state.selected_layer;
+
+    // Build a map of tilemap entity -> layer_index for quick lookup
+    let mut tilemap_layers: HashMap<Entity, usize> = HashMap::new();
+    for (entity, editor_tilemap) in tilemap_query.iter() {
+        tilemap_layers.insert(entity, editor_tilemap.layer_index);
+    }
+
+    // Update 1x1 tiles via TileColor on each tile entity
+    for (tile_entity, tilemap_id) in tile_query.iter() {
+        let Some(&layer_index) = tilemap_layers.get(&tilemap_id.0) else {
+            continue;
+        };
+        let base_opacity = current_opacities.get(&layer_index).copied().unwrap_or(1.0);
+        let effective = match selected_layer {
+            Some(sel) if sel != layer_index => base_opacity * 0.4,
+            _ => base_opacity,
+        };
+        commands
+            .entity(tile_entity)
+            .insert(TileColor(Color::srgba(1.0, 1.0, 1.0, effective)));
+    }
+
+    // Update multi-cell tile sprites
+    for (multi_cell, mut sprite) in multi_cell_query.iter_mut() {
+        let base_opacity = current_opacities
+            .get(&multi_cell.layer_index)
+            .copied()
+            .unwrap_or(1.0);
+        let effective = match selected_layer {
+            Some(sel) if sel != multi_cell.layer_index => base_opacity * 0.4,
+            _ => base_opacity,
+        };
+        sprite.color = Color::srgba(1.0, 1.0, 1.0, effective);
+    }
 }
