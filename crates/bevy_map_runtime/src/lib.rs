@@ -294,7 +294,7 @@ fn handle_map_handle_spawning(
     mut query: Query<(Entity, &MapHandle, &mut MapHandleState, Option<&Transform>)>,
     entity_registry: Res<EntityRegistry>,
     mut map_dialogues: ResMut<MapDialogues>,
-    // mut map_spawn_event: MessageWriter<SpawnMapEvent>,
+    mut map_spawn_event: MessageWriter<SpawnMapEvent>,
 ) {
     for (entity, map_handle, mut state, _transform) in query.iter_mut() {
         // Check if asset is loaded
@@ -362,12 +362,7 @@ fn handle_map_handle_spawning(
             Some(&entity_registry),
         );
 
-        // map_spawn_event.write(SpawnMapEvent {
-        //     level: project.level.clone(),
-        //     transform: Transform::default(),
-        //     tile_size: textures.tile_size,
-        //     tileset_textures: Vec::new(),
-        // });
+        
 
         // Add MapRoot marker and make it a child
         commands.entity(map_entity).insert(MapRoot {
@@ -1127,16 +1122,16 @@ fn handle_spawn_map_project_events(
 ) {
     for event in spawn_events.read() {
         // Load dialogues from the project
-        map_dialogues.load_from_project(&event.project);
+        // map_dialogues.load_from_project(&event.project);
 
-        let map_entity = spawn_map_project(
-            &mut commands,
-            &event.project,
-            &event.textures,
-            event.transform,
-            Some(&entity_registry),
-        );
-        spawned_events.write(MapSpawnedEvent { map_entity });
+        // let map_entity = spawn_map_project(
+        //     &mut commands,
+        //     &event.project,
+        //     &event.textures,
+        //     event.transform,
+        //     Some(&entity_registry),
+        // );
+        // spawned_events.write(MapSpawnedEvent { map_entity });
     }
 }
 
