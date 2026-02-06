@@ -362,7 +362,12 @@ fn handle_map_handle_spawning(
             Some(&entity_registry),
         );
 
-        
+        map_spawn_event.write(SpawnMapEvent {
+            level: project.level.clone(),
+            transform: Transform::default(),
+            tile_size: textures.tile_size,
+            tileset_textures: Vec::new(),
+        });
 
         // Add MapRoot marker and make it a child
         commands.entity(map_entity).insert(MapRoot {
@@ -947,15 +952,15 @@ fn handle_spawn_map_events(
     entity_registry: Res<EntityRegistry>,
 ) {
     for event in spawn_events.read() {
-        let map_entity = spawn_map(
-            &mut commands,
-            &event.level,
-            event.tile_size,
-            &event.tileset_textures,
-            event.transform,
-            Some(&entity_registry),
-        );
-        spawned_events.write(MapSpawnedEvent { map_entity });
+        // let map_entity = spawn_map(
+        //     &mut commands,
+        //     &event.level,
+        //     event.tile_size,
+        //     &event.tileset_textures,
+        //     event.transform,
+        //     Some(&entity_registry),
+        // );
+        // spawned_events.write(MapSpawnedEvent { map_entity });
     }
 }
 
