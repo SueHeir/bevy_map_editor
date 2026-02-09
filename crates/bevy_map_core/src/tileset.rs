@@ -320,10 +320,6 @@ impl Tileset {
     ) {
         if let Some(physics_layer_set) = self.physics_layers.get_physics_layer_mut(physics_layer) {
             physics_layer_set.tile_physics.insert(tile_index, collision);
-            println!(
-                "set tile {} collision for physics layer {:?}",
-                tile_index, physics_layer
-            );
         }
     }
 
@@ -341,14 +337,7 @@ impl Tileset {
                 CollisionData::none()
             };
             physics_layer_set.tile_physics.insert(tile_index, collision);
-
-            println!(
-                "set tile {} collision for physics layer {:?}",
-                tile_index, physics_layer
-            );
-        } else {
-            println!("Warning: Physics layer {:?} not found", physics_layer);
-        }
+        } 
     }
 
     /// Set collision shape for a tile (preserving other collision properties)
@@ -360,10 +349,6 @@ impl Tileset {
     ) {
         if let Some(physics_layer_set) = self.physics_layers.get_physics_layer_mut(physics_layer) {
             physics_layer_set.set_tile_physics_shape(tile_index, shape);
-            println!(
-                "set tile {} collision for physics layer {:?}",
-                tile_index, physics_layer
-            );
         };
     }
 

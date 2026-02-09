@@ -1041,7 +1041,7 @@ pub fn spawn_map(
             let map_type = TilemapType::Square;
 
             // Calculate layer z-offset based on layer index
-            let layer_z = layer_index as f32 * 10.0;
+            let layer_z = layer_index as f32 * level.z_height;
 
             commands.entity(tilemap_entity).insert((
                 TilemapBundle {
@@ -1293,7 +1293,7 @@ pub fn spawn_map_project(
 
                 // Z-offset: layer_index * 0.1 + image_index * 0.01
                 // This ensures proper ordering: all images in layer 0 render before layer 1
-                let layer_z = layer_index as f32 * 10.0 + image_index as f32 * 0.01;
+                let layer_z = layer_index as f32 * level.z_height + image_index as f32 * 0.01;
 
                 commands.entity(tilemap_entity).insert((
                     TilemapBundle {

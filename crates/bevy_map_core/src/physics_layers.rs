@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use crate::{CollisionData, CollisionShape, OneWayDirection};
 
-/// Configuration for autotiling in a project
+/// Holds all physics layers for a tileset, allowing multiple physics configurations per tileset
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct PhysicsLayers {
     /// All physics layers in the tileset

@@ -300,7 +300,7 @@ impl Default for EditorStateConfig {
     fn default() -> Self {
         Self {
             show_grid: true,
-            show_collisions: true,
+            show_collisions: false,
             snap_to_grid: true,
             initial_zoom: 1.0,
             initial_tool: EditorTool::Select,

@@ -491,7 +491,6 @@ mod tests {
         };
 
         let json = serde_json::to_string_pretty(&config).unwrap();
-        println!("Serialized config:\n{}", json);
 
         let deserialized: EntityTypeConfig = serde_json::from_str(&json).unwrap();
         assert!(deserialized.physics.is_some());

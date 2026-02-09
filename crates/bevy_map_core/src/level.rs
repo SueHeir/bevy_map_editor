@@ -11,6 +11,7 @@ pub struct Level {
     pub name: String,
     pub width: u32,
     pub height: u32,
+    pub z_height: f32,
     pub layers: Vec<Layer>,
     pub entities: Vec<EntityInstance>,
     /// World X position in pixels (for world view)
@@ -32,6 +33,7 @@ impl Level {
             name,
             width,
             height,
+            z_height: 0.1, // Default z-height 
             layers: Vec::new(),
             entities: Vec::new(),
             world_x: 0,
@@ -47,6 +49,7 @@ impl Level {
             name,
             width,
             height,
+            z_height: 0.1, // Default z-height 
             layers: Vec::new(),
             entities: Vec::new(),
             world_x,

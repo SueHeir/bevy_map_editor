@@ -2613,14 +2613,8 @@ fn handle_collision_canvas_input(
                 points: polygon_points.clone(),
             };
             if let Some(tileset) = project.tilesets.iter_mut().find(|t| t.id == tileset_id) {
-                if let Some(physics_layer_id) = editor_state
-                    .tileset_editor_state
-                    .collision_editor
-                    .selected_physics_layer
-                {
-                    tileset.set_tile_collision_shape(tile_idx, shape, physics_layer_id);
-                    project.mark_dirty();
-                }
+                tileset.set_tile_collision_shape(tile_idx, shape, physics_layer_id);
+                project.mark_dirty();
             }
             editor_state
                 .tileset_editor_state
