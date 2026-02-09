@@ -66,8 +66,6 @@
 
 use bevy::asset::AssetEvent;
 use bevy::ecs::message::{Message, MessageReader, MessageWriter};
-use bevy::ecs::query::Spawned;
-use bevy::ecs::spawn;
 use bevy::prelude::*;
 use bevy_ecs_tilemap::prelude::*;
 use bevy_map_core::MapProject;
@@ -946,12 +944,12 @@ pub struct RuntimeMap {
 pub struct MapLayerIndex(pub usize);
 
 fn handle_spawn_map_events(
-    mut commands: Commands,
+    _commands: Commands,
     mut spawn_events: MessageReader<SpawnMapEvent>,
-    mut spawned_events: MessageWriter<MapSpawnedEvent>,
-    entity_registry: Res<EntityRegistry>,
+    _spawned_events: MessageWriter<MapSpawnedEvent>,
+    _entity_registry: Res<EntityRegistry>,
 ) {
-    for event in spawn_events.read() {
+    for _event in spawn_events.read() {
         // let map_entity = spawn_map(
         //     &mut commands,
         //     &event.level,
@@ -1119,13 +1117,13 @@ pub struct SpawnMapProjectEvent {
 }
 
 fn handle_spawn_map_project_events(
-    mut commands: Commands,
+    _commands: Commands,
     mut spawn_events: MessageReader<SpawnMapProjectEvent>,
-    mut spawned_events: MessageWriter<MapSpawnedEvent>,
-    entity_registry: Res<EntityRegistry>,
-    mut map_dialogues: ResMut<MapDialogues>,
+    _spawned_events: MessageWriter<MapSpawnedEvent>,
+    _entity_registry: Res<EntityRegistry>,
+    _map_dialogues: ResMut<MapDialogues>,
 ) {
-    for event in spawn_events.read() {
+    for _event in spawn_events.read() {
         // Load dialogues from the project
         // map_dialogues.load_from_project(&event.project);
 

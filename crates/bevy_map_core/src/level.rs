@@ -33,7 +33,7 @@ impl Level {
             name,
             width,
             height,
-            z_height: 0.1, // Default z-height 
+            z_height: 0.1, // Default z-height
             layers: Vec::new(),
             entities: Vec::new(),
             world_x: 0,
@@ -49,7 +49,7 @@ impl Level {
             name,
             width,
             height,
-            z_height: 0.1, // Default z-height 
+            z_height: 0.1, // Default z-height
             layers: Vec::new(),
             entities: Vec::new(),
             world_x,

@@ -624,7 +624,8 @@ pub fn update_tile(
                         // World position: place sprite so origin aligns with grid cell corner
                         let world_x = x as f32 * tile_size_f32 + origin_x as f32;
                         let world_y = y as f32 * tile_size_f32 + origin_y as f32;
-                        let layer_z = layer_index as f32 * level.z_height + image_index as f32 * 0.01 + 0.001;
+                        let layer_z =
+                            layer_index as f32 * level.z_height + image_index as f32 * 0.01 + 0.001;
 
                         let sprite_entity = commands
                             .spawn((
@@ -694,7 +695,8 @@ pub fn update_tile(
                         let tile_storage = TileStorage::empty(map_size);
                         let tilemap_entity = commands.spawn_empty().id();
 
-                        let layer_z = layer_index as f32 * level.z_height + image_index as f32 * 0.01;
+                        let layer_z =
+                            layer_index as f32 * level.z_height + image_index as f32 * 0.01;
                         let layer_visible = layer.visible;
 
                         commands.entity(tilemap_entity).insert((

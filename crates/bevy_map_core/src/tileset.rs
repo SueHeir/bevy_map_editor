@@ -337,7 +337,7 @@ impl Tileset {
                 CollisionData::none()
             };
             physics_layer_set.tile_physics.insert(tile_index, collision);
-        } 
+        }
     }
 
     /// Set collision shape for a tile (preserving other collision properties)
