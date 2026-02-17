@@ -76,7 +76,7 @@ pub struct Player {
 
 // Register in your app builder
 App::new()
-    .add_plugins(MapRuntimePlugin)
+    .add_plugins(MapRuntimePlugin::default())
     .register_map_entity::<Player>()
     // ... other setup
 ```

@@ -378,7 +378,7 @@ pub trait MapEntityExt {
     /// fn main() {
     ///     App::new()
     ///         .add_plugins(DefaultPlugins)
-    ///         .add_plugins(MapRuntimePlugin)
+    ///         .add_plugins(MapRuntimePlugin::default())
     ///         .register_map_entity::<Npc>()
     ///         .register_map_entity::<Enemy>()
     ///         .run();

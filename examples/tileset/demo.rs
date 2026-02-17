@@ -34,7 +34,7 @@ fn main() {
                     ..default()
                 }),
         )
-        .add_plugins(MapRuntimePlugin)
+    .add_plugins(MapRuntimePlugin::default())
         .init_resource::<CursorState>()
         .add_systems(Startup, setup)
         .add_systems(Update, (handle_input, update_cursor, update_display))

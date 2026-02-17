@@ -10,7 +10,7 @@
 //!
 //! App::new()
 //!     .add_plugins(DefaultPlugins)
-//!     .add_plugins(MapRuntimePlugin)
+//!     .add_plugins(MapRuntimePlugin::default())
 //!     .add_plugins(MapEntityInputPlugin)  // Adds input to entities
 //!     .run();
 //! ```
@@ -43,7 +43,7 @@ use bevy_map_core::{InputConfig, InputProfile, MapProject};
 ///
 /// App::new()
 ///     .add_plugins(DefaultPlugins)
-///     .add_plugins(MapRuntimePlugin)
+///     .add_plugins(MapRuntimePlugin::default())
 ///     .add_plugins(MapEntityInputPlugin)
 ///     .run();
 /// ```

@@ -34,7 +34,7 @@ fn main() {
                     ..default()
                 }),
         )
-        .add_plugins(MapRuntimePlugin)
+    .add_plugins(MapRuntimePlugin::default())
         // Register your entity types - maps JSON type_name to Rust component
         .register_map_entity::<Npc>()
         .register_map_entity::<Enemy>()

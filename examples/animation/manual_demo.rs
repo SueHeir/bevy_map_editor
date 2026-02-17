@@ -35,7 +35,7 @@ fn main() {
                     ..default()
                 }),
         )
-        .add_plugins(MapRuntimePlugin)
+    .add_plugins(MapRuntimePlugin::default())
         .add_plugins(SpriteAnimationPlugin)
         .init_resource::<ManualLoadingState>()
         .add_systems(Startup, setup)

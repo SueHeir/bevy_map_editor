@@ -10,7 +10,7 @@
 //!
 //! App::new()
 //!     .add_plugins(DefaultPlugins)
-//!     .add_plugins(MapRuntimePlugin)
+//!     .add_plugins(MapRuntimePlugin::default())
 //!     .add_plugins(MapEntitySpritePlugin)  // Adds sprites to entities
 //!     .run();
 //! ```
@@ -40,7 +40,7 @@ use bevy_map_core::{MapProject, SpriteConfig};
 ///
 /// App::new()
 ///     .add_plugins(DefaultPlugins)
-///     .add_plugins(MapRuntimePlugin)
+///     .add_plugins(MapRuntimePlugin::default())
 ///     .add_plugins(MapEntitySpritePlugin)
 ///     .run();
 /// ```

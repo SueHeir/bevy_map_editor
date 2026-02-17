@@ -33,7 +33,7 @@ fn main() {
                     ..default()
                 }),
         )
-        .add_plugins(MapRuntimePlugin)
+    .add_plugins(MapRuntimePlugin::default())
         .add_plugins(MapCollisionPlugin)
         // Platformer gravity
         .insert_resource(Gravity(Vec2::new(0.0, -800.0)))

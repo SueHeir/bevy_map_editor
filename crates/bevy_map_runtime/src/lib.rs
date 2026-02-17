@@ -20,7 +20,7 @@
 //! fn main() {
 //!     App::new()
 //!         .add_plugins(DefaultPlugins)
-//!         .add_plugins(MapRuntimePlugin)
+//!         .add_plugins(MapRuntimePlugin::default())
 //!         .add_systems(Startup, load_map)
 //!         .run();
 //! }
@@ -166,20 +166,78 @@ pub use bevy_map_animation::{
     SpriteAnimationPlugin, SpriteData, TriggerPayload, WindowPhase, WindowTracker,
 };
 
-/// Plugin for runtime map rendering
+/// Plugin for runtime map loading and optional rendering
 ///
 /// This plugin provides:
 /// - Asset loading for `.map.json` files
 /// - Automatic map spawning when `MapHandle` components are added
 /// - Hot-reload support when using Bevy's `file_watcher` feature
 /// - Manual spawning via `SpawnMapEvent` and `SpawnMapProjectEvent`
-pub struct MapRuntimePlugin;
+///
+/// By default, rendering-related systems (tilemaps, sprites, camera bounds)
+/// are enabled. To disable render-dependent features while keeping map loading
+/// and entity spawning:
+///
+/// ```rust,ignore
+/// App::new()
+///     .add_plugins(MapRuntimePlugin::without_render())
+///     // ... add your own non-render systems
+///     .run();
+/// ```
+#[derive(Debug, Clone, Copy)]
+pub struct MapRuntimePlugin {
+    enable_render: bool,
+}
+
+impl Default for MapRuntimePlugin {
+    fn default() -> Self {
+        Self {
+            enable_render: true,
+        }
+    }
+}
+
+impl MapRuntimePlugin {
+    /// Create a new plugin with default settings (rendering enabled).
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Enable or disable render-dependent systems.
+    pub fn with_render(mut self, enable_render: bool) -> Self {
+        self.enable_render = enable_render;
+        self
+    }
+
+    /// Disable render-dependent systems while keeping map loading and entities.
+    pub fn without_render() -> Self {
+        Self {
+            enable_render: false,
+        }
+    }
+}
+
+/// Runtime settings inserted by `MapRuntimePlugin`.
+#[derive(Resource, Debug, Clone, Copy)]
+pub struct MapRuntimeSettings {
+    /// Whether render-dependent systems are enabled.
+    pub enable_render: bool,
+}
+
+impl Default for MapRuntimeSettings {
+    fn default() -> Self {
+        Self {
+            enable_render: true,
+        }
+    }
+}
 
 impl Plugin for MapRuntimePlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(TilemapPlugin)
+        app.insert_resource(MapRuntimeSettings {
+            enable_render: self.enable_render,
+        })
             .add_plugins(bevy_map_dialogue::DialoguePlugin)
-            .add_plugins(bevy_map_animation::SpriteAnimationPlugin)
             // Asset loading
             .init_asset::<MapProject>()
             .init_asset_loader::<MapProjectLoader>()
@@ -202,23 +260,8 @@ impl Plugin for MapRuntimePlugin {
                 )
                     .chain(),
             )
-            // Sprite spawning systems
-            .add_systems(Update, spawn_sprite_components)
-            .add_systems(Update, complete_sprite_loads)
             // Dialogue attachment system
             .add_systems(Update, attach_dialogues)
-            // Camera bounds systems
-            .add_systems(Update, setup_camera_bounds_from_map)
-            .add_systems(PostUpdate, clamp_camera_to_bounds)
-            // Animated sprite auto-loading systems (opt-in)
-            .add_systems(
-                Update,
-                (
-                    initialize_animated_sprite_handles,
-                    handle_animated_sprite_loading,
-                )
-                    .chain(),
-            )
             // Dialogue tree auto-loading systems (opt-in)
             .add_systems(
                 Update,
@@ -228,6 +271,26 @@ impl Plugin for MapRuntimePlugin {
                 )
                     .chain(),
             );
+
+        if self.enable_render {
+            app.add_plugins(TilemapPlugin)
+                .add_plugins(bevy_map_animation::SpriteAnimationPlugin)
+                // Sprite spawning systems
+                .add_systems(Update, spawn_sprite_components)
+                .add_systems(Update, complete_sprite_loads)
+                // Camera bounds systems
+                .add_systems(Update, setup_camera_bounds_from_map)
+                .add_systems(PostUpdate, clamp_camera_to_bounds)
+                // Animated sprite auto-loading systems (opt-in)
+                .add_systems(
+                    Update,
+                    (
+                        initialize_animated_sprite_handles,
+                        handle_animated_sprite_loading,
+                    )
+                        .chain(),
+                );
+        }
     }
 }
 
@@ -293,6 +356,7 @@ fn handle_map_handle_spawning(
     entity_registry: Res<EntityRegistry>,
     mut map_dialogues: ResMut<MapDialogues>,
     mut map_spawn_event: MessageWriter<SpawnMapEvent>,
+    settings: Res<MapRuntimeSettings>,
 ) {
     for (entity, map_handle, mut state, _transform) in query.iter_mut() {
         // Check if asset is loaded
@@ -307,7 +371,11 @@ fn handle_map_handle_spawning(
                 project.level.name
             );
             let mut textures = TilesetTextures::new();
-            textures.load_from_project(project, &asset_server);
+            if settings.enable_render {
+                textures.load_from_project(project, &asset_server);
+            } else {
+                textures.load_metadata_from_project(project);
+            }
             info!(
                 "Queued {} tileset images, {} sprite sheets for loading",
                 textures.images.len(),
@@ -352,11 +420,14 @@ fn handle_map_handle_spawning(
         // Load dialogues from the project
         map_dialogues.load_from_project(project);
 
-        let map_entity = spawn_map_project(
+        let map_entity = spawn_map_project_with_options(
             &mut commands,
             project,
             textures,
             Transform::default(), // Map is relative to parent
+            MapRuntimeSpawnOptions {
+                enable_render: settings.enable_render,
+            },
             Some(&entity_registry),
         );
 
@@ -486,6 +557,13 @@ impl TilesetTextures {
         }
     }
 
+    /// Load only metadata (tile size) without enqueuing texture assets.
+    pub fn load_metadata_from_project(&mut self, project: &bevy_map_core::MapProject) {
+        if let Some(tileset) = project.tilesets.values().next() {
+            self.tile_size = tileset.tile_size as f32;
+        }
+    }
+
     /// Get texture handle for a specific tileset and image index
     pub fn get(&self, tileset_id: Uuid, image_index: usize) -> Option<&Handle<Image>> {
         self.images.get(&(tileset_id, image_index))
@@ -572,6 +650,21 @@ impl TilesetTextures {
                     info!("Sprite sheet {:?}: state {:?}", sprite_sheet_id, state);
                 }
             }
+        }
+    }
+}
+
+/// Options controlling how runtime map spawning behaves.
+#[derive(Debug, Clone, Copy)]
+pub struct MapRuntimeSpawnOptions {
+    /// Whether to spawn render-dependent components (tilemaps, sprites).
+    pub enable_render: bool,
+}
+
+impl Default for MapRuntimeSpawnOptions {
+    fn default() -> Self {
+        Self {
+            enable_render: true,
         }
     }
 }
@@ -974,6 +1067,27 @@ pub fn spawn_map(
     transform: Transform,
     entity_registry: Option<&EntityRegistry>,
 ) -> Entity {
+    spawn_map_with_options(
+        commands,
+        level,
+        tile_size,
+        tileset_textures,
+        transform,
+        MapRuntimeSpawnOptions::default(),
+        entity_registry,
+    )
+}
+
+/// Spawn a map from a Level with explicit spawn options.
+pub fn spawn_map_with_options(
+    commands: &mut Commands,
+    level: &bevy_map_core::Level,
+    tile_size: f32,
+    tileset_textures: &[Handle<Image>],
+    transform: Transform,
+    options: MapRuntimeSpawnOptions,
+    entity_registry: Option<&EntityRegistry>,
+) -> Entity {
     let map_entity = commands
         .spawn((
             RuntimeMap {
@@ -984,78 +1098,80 @@ pub fn spawn_map(
         ))
         .id();
 
-    // Spawn each tile layer
-    for (layer_index, layer) in level.layers.iter().enumerate() {
-        if let bevy_map_core::LayerData::Tiles { tiles, .. } = &layer.data {
-            if tiles.is_empty() {
-                continue;
-            }
+    if options.enable_render {
+        // Spawn each tile layer
+        for (layer_index, layer) in level.layers.iter().enumerate() {
+            if let bevy_map_core::LayerData::Tiles { tiles, .. } = &layer.data {
+                if tiles.is_empty() {
+                    continue;
+                }
 
-            // Get the tileset texture for this layer
-            let texture_handle = if layer_index < tileset_textures.len() {
-                tileset_textures[layer_index].clone()
-            } else if !tileset_textures.is_empty() {
-                tileset_textures[0].clone()
-            } else {
-                continue;
-            };
+                // Get the tileset texture for this layer
+                let texture_handle = if layer_index < tileset_textures.len() {
+                    tileset_textures[layer_index].clone()
+                } else if !tileset_textures.is_empty() {
+                    tileset_textures[0].clone()
+                } else {
+                    continue;
+                };
 
-            let map_size = TilemapSize {
-                x: level.width,
-                y: level.height,
-            };
+                let map_size = TilemapSize {
+                    x: level.width,
+                    y: level.height,
+                };
 
-            let tilemap_tile_size = TilemapTileSize {
-                x: tile_size,
-                y: tile_size,
-            };
+                let tilemap_tile_size = TilemapTileSize {
+                    x: tile_size,
+                    y: tile_size,
+                };
 
-            let grid_size: TilemapGridSize = tilemap_tile_size.into();
+                let grid_size: TilemapGridSize = tilemap_tile_size.into();
 
-            // Create tilemap storage
-            let mut tile_storage = TileStorage::empty(map_size);
+                // Create tilemap storage
+                let mut tile_storage = TileStorage::empty(map_size);
 
-            let tilemap_entity = commands.spawn_empty().id();
+                let tilemap_entity = commands.spawn_empty().id();
 
-            // Spawn tiles
-            for y in 0..level.height {
-                for x in 0..level.width {
-                    let idx = (y * level.width + x) as usize;
-                    if let Some(&Some(tile_index)) = tiles.get(idx) {
-                        let tile_pos = TilePos { x, y };
-                        let tile_entity = commands
-                            .spawn(TileBundle {
-                                position: tile_pos,
-                                tilemap_id: TilemapId(tilemap_entity),
-                                texture_index: TileTextureIndex(tile_index),
-                                ..default()
-                            })
-                            .id();
-                        tile_storage.set(&tile_pos, tile_entity);
+                // Spawn tiles
+                for y in 0..level.height {
+                    for x in 0..level.width {
+                        let idx = (y * level.width + x) as usize;
+                        if let Some(&Some(tile_index)) = tiles.get(idx) {
+                            let tile_pos = TilePos { x, y };
+                            let tile_entity = commands
+                                .spawn(TileBundle {
+                                    position: tile_pos,
+                                    tilemap_id: TilemapId(tilemap_entity),
+                                    texture_index: TileTextureIndex(tile_index),
+                                    ..default()
+                                })
+                                .id();
+                            tile_storage.set(&tile_pos, tile_entity);
+                        }
                     }
                 }
+
+                let map_type = TilemapType::Square;
+
+                // Calculate layer z-offset based on layer index
+                let layer_z = layer_index as f32 * level.z_height;
+
+                commands.entity(tilemap_entity).insert((
+                    TilemapBundle {
+                        grid_size,
+                        map_type,
+                        size: map_size,
+                        storage: tile_storage,
+                        texture: TilemapTexture::Single(texture_handle),
+                        tile_size: tilemap_tile_size,
+                        transform: Transform::from_xyz(0.0, 0.0, layer_z),
+                        ..default()
+                    },
+                    MapLayerIndex(layer_index),
+                ));
+
+                commands.entity(map_entity).add_child(tilemap_entity);
             }
-
-            let map_type = TilemapType::Square;
-
-            // Calculate layer z-offset based on layer index
-            let layer_z = layer_index as f32 * level.z_height;
-
-            commands.entity(tilemap_entity).insert((
-                TilemapBundle {
-                    grid_size,
-                    map_type,
-                    size: map_size,
-                    storage: tile_storage,
-                    texture: TilemapTexture::Single(texture_handle),
-                    tile_size: tilemap_tile_size,
-                    transform: Transform::from_xyz(0.0, 0.0, layer_z),
-                    ..default()
-                },
-                MapLayerIndex(layer_index),
-            ));
-
-            commands.entity(map_entity).add_child(tilemap_entity);
         }
     }
 
@@ -1174,6 +1290,25 @@ pub fn spawn_map_project(
     transform: Transform,
     entity_registry: Option<&EntityRegistry>,
 ) -> Entity {
+    spawn_map_project_with_options(
+        commands,
+        project,
+        textures,
+        transform,
+        MapRuntimeSpawnOptions::default(),
+        entity_registry,
+    )
+}
+
+/// Spawn a map from a MapProject with explicit spawn options.
+pub fn spawn_map_project_with_options(
+    commands: &mut Commands,
+    project: &bevy_map_core::MapProject,
+    textures: &TilesetTextures,
+    transform: Transform,
+    options: MapRuntimeSpawnOptions,
+    entity_registry: Option<&EntityRegistry>,
+) -> Entity {
     let level = &project.level;
     let tile_size = textures.tile_size;
 
@@ -1187,133 +1322,135 @@ pub fn spawn_map_project(
         ))
         .id();
 
-    // Spawn each tile layer
-    for (layer_index, layer) in level.layers.iter().enumerate() {
-        info!("Processing layer {}: '{}'", layer_index, layer.name);
+    if options.enable_render {
+        // Spawn each tile layer
+        for (layer_index, layer) in level.layers.iter().enumerate() {
+            info!("Processing layer {}: '{}'", layer_index, layer.name);
 
-        if let bevy_map_core::LayerData::Tiles {
-            tileset_id, tiles, ..
-        } = &layer.data
-        {
-            info!(
-                "  Layer {} is a tile layer with {} tiles, tileset {}",
-                layer_index,
-                tiles.len(),
-                tileset_id
-            );
-
-            if tiles.is_empty() {
-                info!("  Layer {} has empty tiles array, skipping", layer_index);
-                continue;
-            }
-
-            // Get tileset from project
-            let Some(tileset) = project.get_tileset(*tileset_id) else {
-                warn!(
-                    "Layer {} references missing tileset {}",
-                    layer_index, tileset_id
-                );
-                continue;
-            };
-
-            info!(
-                "  Found tileset '{}' with {} images",
-                tileset.name,
-                tileset.images.len()
-            );
-
-            // For multi-image tilesets, we need to create separate tilemaps per image
-            // because bevy_ecs_tilemap uses a single texture per tilemap.
-            // Group tiles by which image they belong to.
-            let mut tiles_by_image: HashMap<usize, Vec<(u32, u32, u32)>> = HashMap::new();
-
-            for y in 0..level.height {
-                for x in 0..level.width {
-                    let idx = (y * level.width + x) as usize;
-                    if let Some(&Some(virtual_tile_index)) = tiles.get(idx) {
-                        if let Some((image_index, local_tile_index)) =
-                            tileset.virtual_to_local(virtual_tile_index)
-                        {
-                            tiles_by_image.entry(image_index).or_default().push((
-                                x,
-                                y,
-                                local_tile_index,
-                            ));
-                        }
-                    }
-                }
-            }
-
-            // Spawn a tilemap for each image used in this layer
-            for (image_index, image_tiles) in tiles_by_image {
+            if let bevy_map_core::LayerData::Tiles {
+                tileset_id, tiles, ..
+            } = &layer.data
+            {
                 info!(
-                    "Layer {}: Spawning {} tiles from tileset {} image {}",
+                    "  Layer {} is a tile layer with {} tiles, tileset {}",
                     layer_index,
-                    image_tiles.len(),
-                    tileset_id,
-                    image_index
+                    tiles.len(),
+                    tileset_id
                 );
-                let Some(texture_handle) = textures.get(*tileset_id, image_index) else {
+
+                if tiles.is_empty() {
+                    info!("  Layer {} has empty tiles array, skipping", layer_index);
+                    continue;
+                }
+
+                // Get tileset from project
+                let Some(tileset) = project.get_tileset(*tileset_id) else {
                     warn!(
-                        "Missing texture for tileset {} image {}",
-                        tileset_id, image_index
+                        "Layer {} references missing tileset {}",
+                        layer_index, tileset_id
                     );
                     continue;
                 };
 
-                let map_size = TilemapSize {
-                    x: level.width,
-                    y: level.height,
-                };
+                info!(
+                    "  Found tileset '{}' with {} images",
+                    tileset.name,
+                    tileset.images.len()
+                );
 
-                let tilemap_tile_size = TilemapTileSize {
-                    x: tile_size,
-                    y: tile_size,
-                };
+                // For multi-image tilesets, we need to create separate tilemaps per image
+                // because bevy_ecs_tilemap uses a single texture per tilemap.
+                // Group tiles by which image they belong to.
+                let mut tiles_by_image: HashMap<usize, Vec<(u32, u32, u32)>> = HashMap::new();
 
-                let grid_size: TilemapGridSize = tilemap_tile_size.into();
-                let mut tile_storage = TileStorage::empty(map_size);
-                let tilemap_entity = commands.spawn_empty().id();
-
-                // Spawn tiles for this image
-                for (x, y, local_tile_index) in image_tiles {
-                    let tile_pos = TilePos { x, y };
-                    let tile_entity = commands
-                        .spawn(TileBundle {
-                            position: tile_pos,
-                            tilemap_id: TilemapId(tilemap_entity),
-                            texture_index: TileTextureIndex(local_tile_index),
-                            ..default()
-                        })
-                        .id();
-                    tile_storage.set(&tile_pos, tile_entity);
+                for y in 0..level.height {
+                    for x in 0..level.width {
+                        let idx = (y * level.width + x) as usize;
+                        if let Some(&Some(virtual_tile_index)) = tiles.get(idx) {
+                            if let Some((image_index, local_tile_index)) =
+                                tileset.virtual_to_local(virtual_tile_index)
+                            {
+                                tiles_by_image.entry(image_index).or_default().push((
+                                    x,
+                                    y,
+                                    local_tile_index,
+                                ));
+                            }
+                        }
+                    }
                 }
 
-                // Z-offset: layer_index * 0.1 + image_index * 0.01
-                // This ensures proper ordering: all images in layer 0 render before layer 1
-                let layer_z = layer_index as f32 * level.z_height + image_index as f32 * 0.01;
+                // Spawn a tilemap for each image used in this layer
+                for (image_index, image_tiles) in tiles_by_image {
+                    info!(
+                        "Layer {}: Spawning {} tiles from tileset {} image {}",
+                        layer_index,
+                        image_tiles.len(),
+                        tileset_id,
+                        image_index
+                    );
+                    let Some(texture_handle) = textures.get(*tileset_id, image_index) else {
+                        warn!(
+                            "Missing texture for tileset {} image {}",
+                            tileset_id, image_index
+                        );
+                        continue;
+                    };
 
-                commands.entity(tilemap_entity).insert((
-                    TilemapBundle {
-                        grid_size,
-                        map_type: TilemapType::Square,
-                        size: map_size,
-                        storage: tile_storage,
-                        texture: TilemapTexture::Single(texture_handle.clone()),
-                        tile_size: tilemap_tile_size,
-                        transform: Transform::from_xyz(0.0, 0.0, layer_z),
-                        ..default()
-                    },
-                    MapLayerIndex(layer_index),
-                ));
+                    let map_size = TilemapSize {
+                        x: level.width,
+                        y: level.height,
+                    };
 
-                commands.entity(map_entity).add_child(tilemap_entity);
+                    let tilemap_tile_size = TilemapTileSize {
+                        x: tile_size,
+                        y: tile_size,
+                    };
+
+                    let grid_size: TilemapGridSize = tilemap_tile_size.into();
+                    let mut tile_storage = TileStorage::empty(map_size);
+                    let tilemap_entity = commands.spawn_empty().id();
+
+                    // Spawn tiles for this image
+                    for (x, y, local_tile_index) in image_tiles {
+                        let tile_pos = TilePos { x, y };
+                        let tile_entity = commands
+                            .spawn(TileBundle {
+                                position: tile_pos,
+                                tilemap_id: TilemapId(tilemap_entity),
+                                texture_index: TileTextureIndex(local_tile_index),
+                                ..default()
+                            })
+                            .id();
+                        tile_storage.set(&tile_pos, tile_entity);
+                    }
+
+                    // Z-offset: layer_index * 0.1 + image_index * 0.01
+                    // This ensures proper ordering: all images in layer 0 render before layer 1
+                    let layer_z = layer_index as f32 * level.z_height + image_index as f32 * 0.01;
+
+                    commands.entity(tilemap_entity).insert((
+                        TilemapBundle {
+                            grid_size,
+                            map_type: TilemapType::Square,
+                            size: map_size,
+                            storage: tile_storage,
+                            texture: TilemapTexture::Single(texture_handle.clone()),
+                            tile_size: tilemap_tile_size,
+                            transform: Transform::from_xyz(0.0, 0.0, layer_z),
+                            ..default()
+                        },
+                        MapLayerIndex(layer_index),
+                    ));
+
+                    commands.entity(map_entity).add_child(tilemap_entity);
+                }
+            } else {
+                info!(
+                    "  Layer {} is not a tile layer (entity layer or other)",
+                    layer_index
+                );
             }
-        } else {
-            info!(
-                "  Layer {} is not a tile layer (entity layer or other)",
-                layer_index
-            );
         }
     }
 

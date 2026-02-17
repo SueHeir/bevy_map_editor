@@ -30,7 +30,7 @@ fn main() {
                     ..default()
                 }),
         )
-        .add_plugins(MapRuntimePlugin)
+    .add_plugins(MapRuntimePlugin::default())
         // Register custom entity types that match our map's data types
         .register_map_entity::<Npc>()
         .register_map_entity::<Enemy>()

@@ -20,7 +20,7 @@ fn main() {
             ..default()
         }))
         // Add the map runtime plugin for rendering tilemaps
-        .add_plugins(MapRuntimePlugin)
+    .add_plugins(MapRuntimePlugin::default())
         // Add the generated plugin for entity types and behaviors
         .add_plugins(generated::GeneratedPlugin)
         .add_systems(Startup, setup)

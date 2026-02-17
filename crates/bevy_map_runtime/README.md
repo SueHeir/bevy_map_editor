@@ -22,13 +22,35 @@ use bevy_map::prelude::*;
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugins(MapRuntimePlugin)
+    .add_plugins(MapRuntimePlugin::default())
         .add_systems(Startup, load_map)
         .run();
 }
 
 fn load_map(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn(Camera2d);
+    commands.spawn(MapHandle(asset_server.load("maps/level.map.json")));
+}
+```
+
+## Renderless / Headless Runtime
+
+If you want to load maps and spawn entities without any render-dependent systems
+(tilemaps, sprites, camera bounds), use the renderless flag:
+
+```rust
+use bevy::prelude::*;
+use bevy_map::prelude::*;
+
+fn main() {
+    App::new()
+        .add_plugins(MinimalPlugins)
+        .add_plugins(MapRuntimePlugin::without_render())
+        .add_systems(Startup, load_map)
+        .run();
+}
+
+fn load_map(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn(MapHandle(asset_server.load("maps/level.map.json")));
 }
 ```
@@ -52,7 +74,7 @@ pub struct Chest {
 
 // Register in your app builder
 App::new()
-    .add_plugins(MapRuntimePlugin)
+    .add_plugins(MapRuntimePlugin::default())
     .register_map_entity::<Chest>()
     // ... other setup
 ```
@@ -128,7 +150,7 @@ use avian2d::prelude::*;
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugins(MapRuntimePlugin)
+    .add_plugins(MapRuntimePlugin::default())
         .add_plugins(MapCollisionPlugin)  // Auto-spawns Avian2D colliders!
         .add_plugins(PhysicsPlugins::default())
         .add_systems(Startup, load_map)
@@ -160,7 +182,7 @@ use bevy_map::runtime::{MapEntityPhysicsPlugin, MapCollisionPlugin};
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugins(MapRuntimePlugin)
+    .add_plugins(MapRuntimePlugin::default())
         .add_plugins(MapCollisionPlugin)       // Tile colliders
         .add_plugins(MapEntityPhysicsPlugin)   // Entity physics from type config!
         .add_systems(Startup, load_map)
@@ -185,7 +207,7 @@ use bevy_map::runtime::{MapEntityInputPlugin, MapEntityPhysicsPlugin};
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugins(MapRuntimePlugin)
+    .add_plugins(MapRuntimePlugin::default())
         .add_plugins(MapEntityPhysicsPlugin)   // Physics for movement
         .add_plugins(MapEntityInputPlugin)     // Input from type config!
         .add_systems(Startup, load_map)
@@ -211,7 +233,7 @@ use bevy_map::runtime::MapEntitySpritePlugin;
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugins(MapRuntimePlugin)
+    .add_plugins(MapRuntimePlugin::default())
         .add_plugins(MapEntitySpritePlugin)    // Sprites from type config!
         .add_systems(Startup, load_map)
         .run();
@@ -233,7 +255,7 @@ use avian2d::prelude::*;
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugins(MapRuntimePlugin)
+    .add_plugins(MapRuntimePlugin::default())
         .add_plugins(MapCollisionPlugin)        // Tile colliders
         .add_plugins(MapEntityPhysicsPlugin)    // Entity physics
         .add_plugins(MapEntityInputPlugin)      // Entity input

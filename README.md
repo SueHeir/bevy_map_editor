@@ -178,7 +178,7 @@ use bevy_map::prelude::*;
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugins(MapRuntimePlugin)
+  .add_plugins(MapRuntimePlugin::default())
         .add_systems(Startup, load_map)
         .run();
 }
@@ -213,7 +213,7 @@ pub struct Npc {
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugins(MapRuntimePlugin)
+  .add_plugins(MapRuntimePlugin::default())
         .register_map_entity::<Npc>()
         .run();
 }

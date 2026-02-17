@@ -32,7 +32,7 @@ fn main() {
                     ..default()
                 }),
         )
-        .add_plugins(MapRuntimePlugin)
+    .add_plugins(MapRuntimePlugin::default())
         .add_systems(Startup, setup)
         .add_systems(Update, (handle_input, update_display))
         .run();

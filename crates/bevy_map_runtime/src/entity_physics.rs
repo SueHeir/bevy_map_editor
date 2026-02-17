@@ -10,7 +10,7 @@
 //!
 //! App::new()
 //!     .add_plugins(DefaultPlugins)
-//!     .add_plugins(MapRuntimePlugin)
+//!     .add_plugins(MapRuntimePlugin::default())
 //!     .add_plugins(MapEntityPhysicsPlugin)  // Adds physics to entities
 //!     .run();
 //! ```
@@ -46,7 +46,7 @@ use bevy_map_core::{ColliderConfig, MapProject, PhysicsBodyType, PhysicsConfig};
 ///
 /// App::new()
 ///     .add_plugins(DefaultPlugins)
-///     .add_plugins(MapRuntimePlugin)
+///     .add_plugins(MapRuntimePlugin::default())
 ///     .add_plugins(MapEntityPhysicsPlugin)
 ///     .run();
 /// ```
